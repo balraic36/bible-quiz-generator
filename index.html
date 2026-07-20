@@ -12,26 +12,46 @@
         label { font-weight: 600; margin-top: 15px; display: block; font-size: 14px; color: #333; }
         input, select, textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
         input:focus, select:focus, textarea:focus { border-color: #f55036; outline: none; }
-        button { width: 100%; padding: 14px; margin-top: 20px; border: none; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.3s; }
-        .btn-generate { background-color: #f55036; color: white; }
+        button { width: 100%; padding: 14px; border: none; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.3s; }
+        
+        .btn-generate { background-color: #f55036; color: white; margin-top: 20px; }
         .btn-generate:hover { background-color: #d43f27; }
         .btn-generate:disabled { background-color: #ccc; cursor: not-allowed; }
-        .btn-download-json { background-color: #28a745; color: white; display: none; margin-top: 15px; }
-        .btn-download-json:hover { background-color: #218838; }
-        .btn-download-csv { background-color: #107c41; color: white; display: none; margin-top: 10px; } /* Excel Green Color */
-        .btn-download-csv:hover { background-color: #0b5e31; }
+        
         .btn-fetch { background-color: #2F5597; color: white; padding: 10px; font-size: 14px; height: 100%; }
         .btn-fetch:hover { background-color: #1e3a68; }
+
+        /* डाउनलोड बटनहरूको डिजाइन */
+        .download-group { display: none; flex-direction: column; gap: 10px; margin-top: 20px; }
+        .btn-json { background-color: #28a745; color: white; }
+        .btn-csv { background-color: #107c41; color: white; }
+        .btn-word { background-color: #2b579a; color: white; }
+        .btn-pdf { background-color: #d9534f; color: white; }
+        
+        .btn-json:hover { background-color: #218838; }
+        .btn-csv:hover { background-color: #0b5e31; }
+        .btn-word:hover { background-color: #1e3f73; }
+        .btn-pdf:hover { background-color: #c9302c; }
+
         #status { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center; line-height: 1.4; }
         .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-top: 5px; }
         .flex-row > div { flex: 1; }
+
+        /* प्रिन्ट (PDF) को लागि सेटिङ - छरपस्ट नहुनको लागि */
+        #printArea { display: none; }
+        @media print {
+            body { background-color: white !important; margin: 0; padding: 0; }
+            .container { display: none !important; }
+            #printArea { display: block !important; padding: 20px; }
+            .page-break-safe { page-break-inside: avoid; } /* प्रश्नलाई दुई पानामा काटिनबाट रोक्छ */
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Smart Limit + Excel Export</div>
+    <div class="subtitle">JSON, Excel, Word & PDF Export</div>
     
     <label>Groq API Key:</label>
     <input type="password" id="apiKey" placeholder="gsk_...">
@@ -143,21 +163,34 @@
     <label>बाइबलको पाठ (Text):</label>
     <textarea id="bibleText" rows="6" placeholder="अध्याय छानेर 'पाठ तान्नुहोस्' थिच्नुहोस्..."></textarea>
 
-    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: उत्पत्ति १-३):</label>
+    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: दानिएल २):</label>
     <input type="text" id="chapterDetails" placeholder="अटोमेटिक भरिनेछ...">
 
     <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू बनाउनुहोस् (Generate)</button>
     
     <div id="status"></div>
 
-    <button class="btn-download-json" id="downloadJsonBtn" onclick="downloadJSON()">JSON डाउनलोड गर्नुहोस् ⬇️</button>
-    <button class="btn-download-csv" id="downloadCsvBtn" onclick="downloadCSV()">Excel (CSV) डाउनलोड गर्नुहोस् 📊</button>
+    <!-- चारवटै डाउनलोड अप्सनहरू -->
+    <div class="download-group" id="downloadGroup">
+        <button class="btn-json" onclick="downloadJSON()">JSON डाउनलोड गर्नुहोस् ⬇️</button>
+        <button class="btn-csv" onclick="downloadCSV()">Excel (CSV) डाउनलोड गर्नुहोस् 📊</button>
+        <button class="btn-word" onclick="downloadWord()">Word (DOC) डाउनलोड गर्नुहोस् 📝</button>
+        <button class="btn-pdf" onclick="downloadPDF()">PDF सेभ / प्रिन्ट गर्नुहोस् 🖨️</button>
+    </div>
 </div>
+
+<!-- PDF प्रिन्टको लागि लुकेको भाग -->
+<div id="printArea"></div>
 
 <script>
     let generatedData = null;
     let fullBookData = null; 
     let currentBookCode = "";
+
+    // नम्बरलाई नेपालीमा बदल्ने फङ्सन (१, २, ३...)
+    function toNepaliNum(num) {
+        return num.toString().replace(/\d/g, d => '०१२३४५६७८९'[d]);
+    }
 
     async function fetchFromGitHub() {
         const bookSelect = document.getElementById('bookSelect');
@@ -237,9 +270,7 @@
         const difficulty = document.getElementById('difficulty').value;
         const bibleText = document.getElementById('bibleText').value.trim();
         const statusEl = document.getElementById('status');
-        
-        const downloadJsonBtn = document.getElementById('downloadJsonBtn');
-        const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+        const downloadGroup = document.getElementById('downloadGroup');
 
         if (!apiKey || !chapterDetails || !bibleText) {
             statusEl.innerText = "कृपया API Key र बाँकी विवरणहरू भर्नुहोस्!";
@@ -250,8 +281,7 @@
         statusEl.innerText = "प्रश्नहरू बन्दैछन्... कृपया पर्खनुहोस् ⏳";
         statusEl.style.color = "#007bff";
         document.getElementById('generateBtn').disabled = true;
-        downloadJsonBtn.style.display = 'none';
-        downloadCsvBtn.style.display = 'none';
+        downloadGroup.style.display = 'none';
 
         const prompt = `तपाईं एक NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
 प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
@@ -312,8 +342,7 @@ ${bibleText}`;
                 
                 statusEl.innerText = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
                 statusEl.style.color = "green";
-                downloadJsonBtn.style.display = 'block';
-                downloadCsvBtn.style.display = 'block';
+                downloadGroup.style.display = 'flex'; // सबै बटनहरू देखाउने
             } else {
                 throw new Error("API ले सही उत्तर संरचना पठाएन।");
             }
@@ -326,33 +355,30 @@ ${bibleText}`;
         }
     }
 
-    // JSON फाइल डाउनलोड गर्ने
+    // १. JSON डाउनलोड
     function downloadJSON() {
         if (!generatedData) return;
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        if (!safeName) safeName = "questions";
         
         const blob = new Blob([generatedData], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `nnrv_${safeName}.json`;
+        a.download = `nnrv_${safeName || 'questions'}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
     }
 
-    // Excel (CSV) फाइल डाउनलोड गर्ने नयाँ फङ्सन
+    // २. Excel (CSV) डाउनलोड
     function downloadCSV() {
         if (!generatedData) return;
         const data = JSON.parse(generatedData);
         if (!data || !data.length) return;
 
-        // कोलमको नामहरू (Headers) निकाल्ने
         const headers = Object.keys(data[0]);
         let csvContent = headers.join(",") + "\n";
 
-        // डेटा राख्ने (नेपाली अक्षर वा कमाले नबिगारोस् भनेर मिलाइएको)
         data.forEach(row => {
             let values = headers.map(header => {
                 let val = row[header] ? row[header].toString() : "";
@@ -361,19 +387,88 @@ ${bibleText}`;
             csvContent += values.join(",") + "\n";
         });
 
-        // \uFEFF ले एक्सेलमा नेपाली (UTF-8) फन्ट सपोर्ट गराउँछ
         const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        if (!safeName) safeName = "questions";
-        
-        a.download = `nnrv_${safeName}.csv`;
+        a.download = `nnrv_${safeName || 'questions'}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+    }
+
+    // ३. Word (DOC) डाउनलोड
+    function downloadWord() {
+        if (!generatedData) return;
+        const data = JSON.parse(generatedData);
+        const chapterDetails = document.getElementById('chapterDetails').value.trim();
+
+        // Word को लागि HTML संरचना
+        let content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>`;
+        content += `<head><meta charset='utf-8'><title>Bible Quiz</title></head><body>`;
+        content += `<div style='text-align:center; font-size: 20px; font-weight: bold;'>बाइबल Quiz प्रश्नहरु</div>`;
+        content += `<div style='text-align:center; font-size: 16px; margin-bottom: 20px;'>पुस्तक : ${chapterDetails} बाट</div><hr>`;
+
+        data.forEach((q, index) => {
+            let nepaliNum = toNepaliNum(index + 1);
+            content += `<div style='margin-bottom: 15px;'>`;
+            content += `<div style='font-size: 16px; font-weight: bold; margin-bottom: 5px;'>${nepaliNum}) ${q.questionText}</div>`;
+            content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.5;'>`;
+            content += `A: ${q.optionA}<br>`;
+            content += `B: ${q.optionB}<br>`;
+            content += `C: ${q.optionC}<br>`;
+            content += `D: ${q.optionD}`;
+            content += `</div>`;
+            content += `<div style='font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px;'>correctAnswer: ${q.correctAnswer}</div>`;
+            content += `</div>`;
+        });
+
+        content += `</body></html>`;
+
+        const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        let safeName = chapterDetails.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        a.download = `nnrv_${safeName || 'questions'}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    // ४. PDF सेभ / प्रिन्ट (छरपस्ट नहुने गरी)
+    function downloadPDF() {
+        if (!generatedData) return;
+        const data = JSON.parse(generatedData);
+        const chapterDetails = document.getElementById('chapterDetails').value.trim();
+        const printDiv = document.getElementById('printArea');
+
+        // PDF को लागि सफा डिजाइन (page-break-safe क्लास प्रयोग गरिएको छ)
+        let content = `<div style="font-family: sans-serif; max-width: 800px; margin: auto;">`;
+        content += `<h2 style="text-align: center; margin-bottom: 5px;">बाइबल Quiz प्रश्नहरु</h2>`;
+        content += `<h3 style="text-align: center; margin-top: 0; color: #555;">पुस्तक : ${chapterDetails} बाट</h3><hr style="margin-bottom:20px;">`;
+
+        data.forEach((q, index) => {
+            let nepaliNum = toNepaliNum(index + 1);
+            // page-break-safe ले पानाको बिचमा प्रश्न काटिन दिँदैन
+            content += `<div class="page-break-safe" style="margin-bottom: 20px;">`;
+            content += `<div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${nepaliNum}) ${q.questionText}</div>`;
+            content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
+            content += `A: ${q.optionA}<br>`;
+            content += `B: ${q.optionB}<br>`;
+            content += `C: ${q.optionC}<br>`;
+            content += `D: ${q.optionD}`;
+            content += `</div>`;
+            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px;">correctAnswer: ${q.correctAnswer}</div>`;
+            content += `</div>`;
+        });
+        
+        content += `</div>`;
+        printDiv.innerHTML = content;
+
+        // ब्राउजरको प्रिन्ट (Save as PDF) डायलग खोल्ने
+        window.print();
     }
 </script>
 
