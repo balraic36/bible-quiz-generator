@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NNRV Quiz Generator (Groq Powered)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
+        .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+        h2 { text-align: center; color: #f55036; margin-top: 0; } /* Groq's brand color vibe */
+        .subtitle { text-align: center; color: #555; font-size: 13px; margin-bottom: 20px; }
+        label { font-weight: 600; margin-top: 15px; display: block; font-size: 14px; color: #333; }
+        input, select, textarea { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        input:focus, select:focus, textarea:focus { border-color: #f55036; outline: none; }
+        button { width: 100%; padding: 14px; margin-top: 20px; border: none; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.3s; }
+        .btn-generate { background-color: #f55036; color: white; }
+        .btn-generate:hover { background-color: #d43f27; }
+        .btn-generate:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn-download { background-color: #28a745; color: white; display: none; }
+        .btn-download:hover { background-color: #218838; }
+        #status { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
+    <div class="subtitle">Powered by Groq (Llama 3.1)</div>
+    
+    <label>Groq API Key:</label>
+    <input type="password" id="apiKey" placeholder="gsk_...">
+
+    <label>पुस्तकको नाम र अध्याय (जस्तै: उत्पत्ति १):</label>
+    <input type="text" id="bookDetails" placeholder="पुस्तक र अध्याय">
+
+    <label>कतिवटा प्रश्न चाहियो?</label>
+    <input type="number" id="qCount" value="10" min="1" max="50">
+
+    <label>प्रश्नको स्तर (Difficulty):</label>
+    <select id="difficulty">
+        <option value="Mixed">सबै मिसाएको (Easy, Medium, Hard)</option>
+        <option value="Easy">सजिलो मात्र (Easy)</option>
+        <option value="Medium">मध्यम मात्र (Medium)</option>
+        <option value="Hard">गाह्रो मात्र (Hard)</option>
+    </select>
+
+    <label>बाइबलको पाठ (Text) यहाँ पेस्ट गर्नुहोस्:</label>
+    <textarea id="bibleText" rows="6" placeholder="यहाँ बाइबलको पाठ पेस्ट गर्नुहोस्..."></textarea>
+
+    <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू बनाउनुहोस् (Generate)</button>
+    
+    <div id="status"></div>
+
+    <button class="btn-download" id="downloadBtn" onclick="downloadJSON()">JSON डाउनलोड गर्नुहोस् ⬇️</button>
+</div>
+
+<script>
+    let generatedData = null;
+
+    async function generateQuestions() {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const bookDetails = document.getElementById('bookDetails').value.trim();
+        const qCount = document.getElementById('qCount').value;
+        const difficulty = document.getElementById('difficulty').value;
+        const bibleText = document.getElementById('bibleText').value.trim();
+        const statusEl = document.getElementById('status');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        if (!apiKey || !bookDetails || !bibleText) {
+            statusEl.innerText = "कृपया सबै विवरणहरू भर्नुहोस्!";
+            statusEl.style.color = "red";
+            return;
+        }
+
+        statusEl.innerText = "प्रश्नहरू बन्दैछन्... कृपया पर्खनुहोस् ⏳";
+        statusEl.style.color = "#007bff";
+        document.getElementById('generateBtn').disabled = true;
+        downloadBtn.style.display = 'none';
+
+        // Llama 3 needs strict instructions to return a JSON object.
+        const prompt = `तपाईं एक NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
+प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
+सन्दर्भ (पुस्तक र अध्याय): ${bookDetails}
+
+नियम:
+१. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ।
+२. उक्त JSON Object भित्र "questions" नामको एउटा Array हुनुपर्छ।
+३. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
+{
+  "category": "Bible Quiz",
+  "bookDetails": "${bookDetails}",
+  "questionText": "...",
+  "optionA": "...",
+  "optionB": "...",
+  "optionC": "...",
+  "optionD": "...",
+  "correctAnswer": "...",
+  "difficulty": "Easy/Medium/Hard"
+}
+
+बाइबल पाठ:
+${bibleText}`;
+
+        const url = `https://api.groq.com/openai/v1/chat/completions`;
+        
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: "llama-3.1-70b-versatile",
+                    messages: [
+                        { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
+                        { role: "user", content: prompt }
+                    ],
+                    response_format: { type: "json_object" }, // Forces Groq to return valid JSON
+                    temperature: 0.3 // Low temperature for more accurate/factual questions
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.choices && data.choices[0].message.content) {
+                // Parse and re-stringify to format it beautifully with indentation
+                const jsonObject = JSON.parse(data.choices[0].message.content);
+                // Extract just the array if the model wrapped it in {"questions": [...]}
+                const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
+                
+                generatedData = JSON.stringify(finalArray, null, 4); 
+                
+                statusEl.innerText = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
+                statusEl.style.color = "green";
+                downloadBtn.style.display = 'block';
+            } else {
+                throw new Error("API ले सही उत्तर दिएन वा API Key गलत छ।");
+            }
+        } catch (error) {
+            statusEl.innerText = "❌ त्रुटि: प्रश्न बनाउन सकिएन। API Key चेक गर्नुहोस्।";
+            statusEl.style.color = "red";
+            console.error(error);
+        } finally {
+            document.getElementById('generateBtn').disabled = false;
+        }
+    }
+
+    function downloadJSON() {
+        if (!generatedData) return;
+        
+        // Create a safe file name based on user input
+        let safeName = document.getElementById('bookDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        if (!safeName) safeName = "questions";
+        
+        const blob = new Blob([generatedData], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `nnrv_${safeName}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+</script>
+
+</body>
+</html>
+
