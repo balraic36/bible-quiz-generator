@@ -232,6 +232,11 @@ ${bibleText}`;
         
         try {
             const response = await fetch(url, {
+                            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error?.message || "API ले काम गरेन। लिमिट क्रस भएको हुन सक्छ।");
+            }
+            
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -262,11 +267,13 @@ ${bibleText}`;
             } else {
                 throw new Error("API ले सही उत्तर दिएन वा API Key गलत छ।");
             }
-        } catch (error) {
-            statusEl.innerText = "❌ त्रुटि: प्रश्न बनाउन सकिएन। API Key चेक गर्नुहोस्।";
+                } catch (error) {
+            // वास्तविक त्रुटि म्यासेज देखाउन
+            statusEl.innerText = "❌ त्रुटि: " + error.message;
             statusEl.style.color = "red";
             console.error(error);
         } finally {
+
             document.getElementById('generateBtn').disabled = false;
         }
     }
