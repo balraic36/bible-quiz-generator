@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NNRV Quiz Generator (Groq Powered)</title>
+    <title>NNRV Quiz Generator (Auto-Fetch)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
         .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
-        h2 { text-align: center; color: #f55036; margin-top: 0; } /* Groq's brand color vibe */
+        h2 { text-align: center; color: #f55036; margin-top: 0; }
         .subtitle { text-align: center; color: #555; font-size: 13px; margin-bottom: 20px; }
         label { font-weight: 600; margin-top: 15px; display: block; font-size: 14px; color: #333; }
         input, select, textarea { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
@@ -18,20 +18,22 @@
         .btn-generate:disabled { background-color: #ccc; cursor: not-allowed; }
         .btn-download { background-color: #28a745; color: white; display: none; }
         .btn-download:hover { background-color: #218838; }
+        .btn-fetch { background-color: #2F5597; color: white; margin-top: 10px; padding: 10px; font-size: 14px; }
+        .btn-fetch:hover { background-color: #1e3a68; }
         #status { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center; }
+        .flex-row { display: flex; gap: 10px; align-items: flex-end; }
+        .flex-row select { margin-top: 0; }
+        .info-text { font-size: 11px; color: #666; margin-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Powered by Groq (Llama 3.1)</div>
+    <div class="subtitle">Powered by Groq & Auto GitHub Fetch</div>
     
     <label>Groq API Key:</label>
     <input type="password" id="apiKey" placeholder="gsk_...">
-
-    <label>पुस्तकको नाम र अध्याय (जस्तै: उत्पत्ति १):</label>
-    <input type="text" id="bookDetails" placeholder="पुस्तक र अध्याय">
 
     <label>कतिवटा प्रश्न चाहियो?</label>
     <input type="number" id="qCount" value="10" min="1" max="50">
@@ -44,8 +46,92 @@
         <option value="Hard">गाह्रो मात्र (Hard)</option>
     </select>
 
-    <label>बाइबलको पाठ (Text) यहाँ पेस्ट गर्नुहोस्:</label>
-    <textarea id="bibleText" rows="6" placeholder="यहाँ बाइबलको पाठ पेस्ट गर्नुहोस्..."></textarea>
+    <!-- नयाँ अटोमेटिक GitHub डेटा तान्ने सेक्सन -->
+    <label>पुस्तक छान्नुहोस् (डेटा तान्नको लागि):</label>
+    <div class="flex-row">
+        <select id="bookSelect">
+            <optgroup label="पुरानो करार (Old Testament)">
+                <option value="GEN">उत्पत्ति (Genesis)</option>
+                <option value="EXO">प्रस्थान (Exodus)</option>
+                <option value="LEV">लेवी (Leviticus)</option>
+                <option value="NUM">गन्ती (Numbers)</option>
+                <option value="DEU">व्यवस्था (Deuteronomy)</option>
+                <option value="JOS">यहोशू (Joshua)</option>
+                <option value="JDG">न्यायकर्ता (Judges)</option>
+                <option value="RUT">रूथ (Ruth)</option>
+                <option value="1SA">१ शमूएल (1 Samuel)</option>
+                <option value="2SA">२ शमूएल (2 Samuel)</option>
+                <option value="1KI">१ राजा (1 Kings)</option>
+                <option value="2KI">२ राजा (2 Kings)</option>
+                <option value="1CH">१ इतिहास (1 Chronicles)</option>
+                <option value="2CH">२ इतिहास (2 Chronicles)</option>
+                <option value="EZR">एज्रा (Ezra)</option>
+                <option value="NEH">नहेम्याह (Nehemiah)</option>
+                <option value="EST">एस्तर (Esther)</option>
+                <option value="JOB">अय्यूब (Job)</option>
+                <option value="PSA">भजनसंग्रह (Psalms)</option>
+                <option value="PRO">हितोपदेश (Proverbs)</option>
+                <option value="ECC">उपदेशक (Ecclesiastes)</option>
+                <option value="SNG">श्रेष्ठगीत (Song of Solomon)</option>
+                <option value="ISA">यशैया (Isaiah)</option>
+                <option value="JER">यर्मिया (Jeremiah)</option>
+                <option value="LAM">विलाप (Lamentations)</option>
+                <option value="EZK">इजकिएल (Ezekiel)</option>
+                <option value="DAN">दानिएल (Daniel)</option>
+                <option value="HOS">होशे (Hosea)</option>
+                <option value="JOL">योएल (Joel)</option>
+                <option value="AMO">आमोस (Amos)</option>
+                <option value="OBA">ओबद्याह (Obadiah)</option>
+                <option value="JON">योना (Jonah)</option>
+                <option value="MIC">मीका (Micah)</option>
+                <option value="NAM">नहूम (Nahum)</option>
+                <option value="HAB">हबकूक (Habakkuk)</option>
+                <option value="ZEP">सपन्याह (Zephaniah)</option>
+                <option value="HAG">हाग्गै (Haggai)</option>
+                <option value="ZEC">जकरिया (Zechariah)</option>
+                <option value="MAL">मलाकी (Malachi)</option>
+            </optgroup>
+            <optgroup label="नयाँ करार (New Testament)">
+                <option value="MAT">मत्ती (Matthew)</option>
+                <option value="MAR">मर्कूस (Mark)</option>
+                <option value="LUK">लूका (Luke)</option>
+                <option value="JHN">यूहन्ना (John)</option>
+                <option value="ACT">प्रेरित (Acts)</option>
+                <option value="ROM">रोमी (Romans)</option>
+                <option value="1CO">१ कोरिन्थी (1 Corinthians)</option>
+                <option value="2CO">२ कोरिन्थी (2 Corinthians)</option>
+                <option value="GAL">गलाती (Galatians)</option>
+                <option value="EPH">एफिसी (Ephesians)</option>
+                <option value="PHP">फिलिप्पी (Philippians)</option>
+                <option value="COL">कलस्सी (Colossians)</option>
+                <option value="1TH">१ थिस्सलोनिकी (1 Thessalonians)</option>
+                <option value="2TH">२ थिस्सलोनिकी (2 Thessalonians)</option>
+                <option value="1TI">१ तिमोथी (1 Timothy)</option>
+                <option value="2TI">२ तिमोथी (2 Timothy)</option>
+                <option value="TIT">तीतस (Titus)</option>
+                <option value="PHM">फिलेमोन (Philemon)</option>
+                <option value="HEB">हिब्रू (Hebrews)</option>
+                <option value="JAS">याकूब (James)</option>
+                <option value="1PE">१ पत्रुस (1 Peter)</option>
+                <option value="2PE">२ पत्रुस (2 Peter)</option>
+                <option value="1JN">१ यूहन्ना (1 John)</option>
+                <option value="2JN">२ यूहन्ना (2 John)</option>
+                <option value="3JN">३ यूहन्ना (3 John)</option>
+                <option value="JUD">यहूदा (Jude)</option>
+                <option value="REV">प्रकाश (Revelation)</option>
+            </optgroup>
+        </select>
+        <button class="btn-fetch" onclick="fetchFromGitHub()" style="width: auto; white-space: nowrap;">पाठ तान्नुहोस्</button>
+    </div>
+    
+    <div class="info-text">💡 पाठ तानिसकेपछि, बक्सबाट आफूलाई नचाहिने अध्यायहरू मेटाइदिनुहोला।</div>
+
+    <label>बाइबलको पाठ (Text):</label>
+    <textarea id="bibleText" rows="6" placeholder="पुस्तक छानेर 'पाठ तान्नुहोस्' थिच्नुहोस्..."></textarea>
+
+    <!-- प्रश्नको सन्दर्भको लागि (जस्तै: उत्पत्ति १-३) -->
+    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: उत्पत्ति १):</label>
+    <input type="text" id="chapterDetails" placeholder="जस्तै: मत्ती ५">
 
     <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू बनाउनुहोस् (Generate)</button>
     
@@ -57,30 +143,71 @@
 <script>
     let generatedData = null;
 
+    // GitHub बाट अटोमेटिक पाठ तान्ने फङ्सन
+    async function fetchFromGitHub() {
+        const bookCode = document.getElementById('bookSelect').value;
+        const bookName = document.getElementById('bookSelect').options[document.getElementById('bookSelect').selectedIndex].text;
+        
+        // iyamsamrat को NNRV_Bible repository को Raw URL
+        const url = `https://raw.githubusercontent.com/iyamsamrat/NNRV_Bible/main/${bookCode}.json`;
+        const statusEl = document.getElementById('status');
+        const textArea = document.getElementById('bibleText');
+        const chapterDetails = document.getElementById('chapterDetails');
+
+        statusEl.innerText = `${bookName} तान्दै... ⏳`;
+        statusEl.style.color = "#007bff";
+        textArea.value = "डेटा डाउनलोड हुँदैछ, कृपया पर्खनुहोस्...";
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("डेटा भेटिएन।");
+            const textData = await response.text();
+            
+            try {
+                // JSON लाई सफा टेक्स्टमा देखाउन
+                const jsonObj = JSON.parse(textData);
+                textArea.value = JSON.stringify(jsonObj, null, 2);
+            } catch (e) {
+                // यदि JSON पार्स भएन भने जस्तो छ त्यस्तै राखिदिने
+                textArea.value = textData;
+            }
+            
+            // पुस्तकको नाम च्याप्टर बक्समा आफैं राखिदिने
+            chapterDetails.value = bookName.split(' ')[0]; 
+
+            statusEl.innerText = `✅ ${bookName} सफलतापूर्वक तानियो! नचाहिने अध्याय बक्सबाट हटाउनुहोस्।`;
+            statusEl.style.color = "green";
+        } catch (error) {
+            statusEl.innerText = "❌ त्रुटि: पाठ तान्न सकिएन। इन्टरनेट चेक गर्नुहोस्।";
+            statusEl.style.color = "red";
+            textArea.value = "";
+            console.error(error);
+        }
+    }
+
     async function generateQuestions() {
         const apiKey = document.getElementById('apiKey').value.trim();
-        const bookDetails = document.getElementById('bookDetails').value.trim();
+        const chapterDetails = document.getElementById('chapterDetails').value.trim();
         const qCount = document.getElementById('qCount').value;
         const difficulty = document.getElementById('difficulty').value;
         const bibleText = document.getElementById('bibleText').value.trim();
         const statusEl = document.getElementById('status');
         const downloadBtn = document.getElementById('downloadBtn');
 
-        if (!apiKey || !bookDetails || !bibleText) {
-            statusEl.innerText = "कृपया सबै विवरणहरू भर्नुहोस्!";
+        if (!apiKey || !chapterDetails || !bibleText) {
+            statusEl.innerText = "कृपया API Key र बाँकी विवरणहरू भर्नुहोस्!";
             statusEl.style.color = "red";
             return;
         }
 
-        statusEl.innerText = "प्रश्नहरू बन्दैछन्... कृपया पर्खनुहोस् ⏳";
+        statusEl.innerText = "प्रश्नहरू बन्दैछन्... यसलाई केही सेकेन्ड लाग्न सक्छ ⏳";
         statusEl.style.color = "#007bff";
         document.getElementById('generateBtn').disabled = true;
         downloadBtn.style.display = 'none';
 
-        // Llama 3 needs strict instructions to return a JSON object.
         const prompt = `तपाईं एक NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
 प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
-सन्दर्भ (पुस्तक र अध्याय): ${bookDetails}
+सन्दर्भ (पुस्तक र अध्याय): ${chapterDetails}
 
 नियम:
 १. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ।
@@ -88,7 +215,7 @@
 ३. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
 {
   "category": "Bible Quiz",
-  "bookDetails": "${bookDetails}",
+  "bookDetails": "${chapterDetails}",
   "questionText": "...",
   "optionA": "...",
   "optionB": "...",
@@ -116,17 +243,15 @@ ${bibleText}`;
                         { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
                         { role: "user", content: prompt }
                     ],
-                    response_format: { type: "json_object" }, // Forces Groq to return valid JSON
-                    temperature: 0.3 // Low temperature for more accurate/factual questions
+                    response_format: { type: "json_object" },
+                    temperature: 0.3
                 })
             });
 
             const data = await response.json();
             
             if (data.choices && data.choices[0].message.content) {
-                // Parse and re-stringify to format it beautifully with indentation
                 const jsonObject = JSON.parse(data.choices[0].message.content);
-                // Extract just the array if the model wrapped it in {"questions": [...]}
                 const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
                 
                 generatedData = JSON.stringify(finalArray, null, 4); 
@@ -148,9 +273,7 @@ ${bibleText}`;
 
     function downloadJSON() {
         if (!generatedData) return;
-        
-        // Create a safe file name based on user input
-        let safeName = document.getElementById('bookDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
         if (!safeName) safeName = "questions";
         
         const blob = new Blob([generatedData], { type: "application/json" });
@@ -166,4 +289,3 @@ ${bibleText}`;
 
 </body>
 </html>
-
