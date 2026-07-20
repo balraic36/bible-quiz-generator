@@ -39,11 +39,12 @@
 
         /* प्रिन्ट (PDF) को लागि सेटिङ - छरपस्ट नहुनको लागि */
         #printArea { display: none; }
+        
         @media print {
             body { background-color: white !important; margin: 0; padding: 0; }
             .container { display: none !important; }
-            #printArea { display: block !important; padding: 20px; }
-            .page-break-safe { page-break-inside: avoid; } /* प्रश्नलाई दुई पानामा काटिनबाट रोक्छ */
+            #printArea { display: block !important; padding: 20px; color: black; }
+            .page-break-safe { page-break-inside: avoid; break-inside: avoid; margin-bottom: 20px; } /* प्रश्नलाई काटिन दिँदैन */
         }
     </style>
 </head>
@@ -187,7 +188,7 @@
     let fullBookData = null; 
     let currentBookCode = "";
 
-    // नम्बरलाई नेपालीमा बदल्ने फङ्सन (१, २, ३...)
+    // नम्बरलाई नेपालीमा बदल्ने फङ्सन
     function toNepaliNum(num) {
         return num.toString().replace(/\d/g, d => '०१२३४५६७८९'[d]);
     }
@@ -283,7 +284,6 @@
         document.getElementById('generateBtn').disabled = true;
         downloadGroup.style.display = 'none';
 
-        // AI लाई 'verseReference' (पदको सन्दर्भ) निकाल्न विशेष निर्देशन दिइएको छ।
         const prompt = `तपाईं एक NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
 प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
 सन्दर्भ: ${chapterDetails}
@@ -360,7 +360,10 @@ ${bibleText}`;
 
     // १. JSON डाउनलोड
     function downloadJSON() {
-        if (!generatedData) return;
+        if (!generatedData) {
+            alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!");
+            return;
+        }
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
         
         const blob = new Blob([generatedData], { type: "application/json" });
@@ -375,7 +378,10 @@ ${bibleText}`;
 
     // २. Excel (CSV) डाउनलोड
     function downloadCSV() {
-        if (!generatedData) return;
+        if (!generatedData) {
+            alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!");
+            return;
+        }
         const data = JSON.parse(generatedData);
         if (!data || !data.length) return;
 
@@ -401,9 +407,12 @@ ${bibleText}`;
         document.body.removeChild(a);
     }
 
-    // ३. Word (DOC) डाउनलोड (सही उत्तर र पदको सन्दर्भ सहित)
+    // ३. Word (DOC) डाउनलोड
     function downloadWord() {
-        if (!generatedData) return;
+        if (!generatedData) {
+            alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!");
+            return;
+        }
         const data = JSON.parse(generatedData);
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
 
@@ -424,7 +433,6 @@ ${bibleText}`;
             content += `C: ${q.optionC}<br>`;
             content += `D: ${q.optionD}`;
             content += `</div>`;
-            // यहाँ सही उत्तर र पदको सन्दर्भ थपिएको छ
             content += `<div style='font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;'>सही उत्तर: ${q.correctAnswer} <span style='font-size: 14px; font-weight: normal; color: #555;'>(सन्दर्भ: ${referenceText})</span></div>`;
             content += `</div>`;
         });
@@ -442,9 +450,12 @@ ${bibleText}`;
         document.body.removeChild(a);
     }
 
-    // ४. PDF सेभ / प्रिन्ट (सही उत्तर र पदको सन्दर्भ सहित)
+    // ४. PDF सेभ / प्रिन्ट
     function downloadPDF() {
-        if (!generatedData) return;
+        if (!generatedData) {
+            alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!");
+            return;
+        }
         const data = JSON.parse(generatedData);
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
         const printDiv = document.getElementById('printArea');
@@ -457,7 +468,7 @@ ${bibleText}`;
             let nepaliNum = toNepaliNum(index + 1);
             let referenceText = q.verseReference ? q.verseReference : q.bookDetails;
             
-            content += `<div class="page-break-safe" style="margin-bottom: 20px;">`;
+            content += `<div class="page-break-safe">`;
             content += `<div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${nepaliNum}) ${q.questionText}</div>`;
             content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
             content += `A: ${q.optionA}<br>`;
@@ -465,7 +476,6 @@ ${bibleText}`;
             content += `C: ${q.optionC}<br>`;
             content += `D: ${q.optionD}`;
             content += `</div>`;
-            // यहाँ सही उत्तर र पदको सन्दर्भ थपिएको छ
             content += `<div style="font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;">सही उत्तर: ${q.correctAnswer} <span style="font-size: 14px; font-weight: normal; color: #555;">(सन्दर्भ: ${referenceText})</span></div>`;
             content += `</div>`;
         });
@@ -473,12 +483,12 @@ ${bibleText}`;
         content += `</div>`;
         printDiv.innerHTML = content;
 
-        window.print();
+        // मोबाइलमा प्रिन्ट कमाण्डले काम गर्न थोरै समय (Delay) चाहिन्छ
+        setTimeout(() => {
+            window.print();
+        }, 500); 
     }
 </script>
 
 </body>
 </html>
-
-
-        
