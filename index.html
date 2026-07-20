@@ -51,7 +51,7 @@
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">JSON, Excel, Word & PDF Export</div>
+    <div class="subtitle">JSON, Excel, Word & PDF Export (सन्दर्भ सहित)</div>
     
     <label>Groq API Key:</label>
     <input type="password" id="apiKey" placeholder="gsk_...">
@@ -283,6 +283,7 @@
         document.getElementById('generateBtn').disabled = true;
         downloadGroup.style.display = 'none';
 
+        // AI लाई 'verseReference' (पदको सन्दर्भ) निकाल्न विशेष निर्देशन दिइएको छ।
         const prompt = `तपाईं एक NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
 प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
 सन्दर्भ: ${chapterDetails}
@@ -294,14 +295,16 @@
 {
   "category": "Bible Quiz",
   "bookDetails": "${chapterDetails}",
+  "verseReference": "...", 
   "questionText": "...",
   "optionA": "...",
   "optionB": "...",
   "optionC": "...",
   "optionD": "...",
-  "correctAnswer": "...",
+  "correctAnswer": "A/B/C/D",
   "difficulty": "Easy/Medium/Hard"
 }
+४. "verseReference" मा ठ्याक्कै कुन पुस्तक, अध्याय र पदबाट प्रश्न सोधिएको हो, त्यो लेख्नुहोस् (जस्तै: दानिएल २:४५)।
 
 बाइबल पाठ:
 ${bibleText}`;
@@ -342,7 +345,7 @@ ${bibleText}`;
                 
                 statusEl.innerText = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
                 statusEl.style.color = "green";
-                downloadGroup.style.display = 'flex'; // सबै बटनहरू देखाउने
+                downloadGroup.style.display = 'flex'; 
             } else {
                 throw new Error("API ले सही उत्तर संरचना पठाएन।");
             }
@@ -398,13 +401,12 @@ ${bibleText}`;
         document.body.removeChild(a);
     }
 
-    // ३. Word (DOC) डाउनलोड
+    // ३. Word (DOC) डाउनलोड (सही उत्तर र पदको सन्दर्भ सहित)
     function downloadWord() {
         if (!generatedData) return;
         const data = JSON.parse(generatedData);
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
 
-        // Word को लागि HTML संरचना
         let content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>`;
         content += `<head><meta charset='utf-8'><title>Bible Quiz</title></head><body>`;
         content += `<div style='text-align:center; font-size: 20px; font-weight: bold;'>बाइबल Quiz प्रश्नहरु</div>`;
@@ -412,6 +414,8 @@ ${bibleText}`;
 
         data.forEach((q, index) => {
             let nepaliNum = toNepaliNum(index + 1);
+            let referenceText = q.verseReference ? q.verseReference : q.bookDetails;
+            
             content += `<div style='margin-bottom: 15px;'>`;
             content += `<div style='font-size: 16px; font-weight: bold; margin-bottom: 5px;'>${nepaliNum}) ${q.questionText}</div>`;
             content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.5;'>`;
@@ -420,57 +424,18 @@ ${bibleText}`;
             content += `C: ${q.optionC}<br>`;
             content += `D: ${q.optionD}`;
             content += `</div>`;
-            content += `<div style='font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px;'>correctAnswer: ${q.correctAnswer}</div>`;
-            content += `</div>`;
-        });
-
-        content += `</body></html>`;
-
-        const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        let safeName = chapterDetails.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        a.download = `nnrv_${safeName || 'questions'}.doc`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    }
-
-    // ४. PDF सेभ / प्रिन्ट (छरपस्ट नहुने गरी)
-    function downloadPDF() {
-        if (!generatedData) return;
-        const data = JSON.parse(generatedData);
-        const chapterDetails = document.getElementById('chapterDetails').value.trim();
-        const printDiv = document.getElementById('printArea');
-
-        // PDF को लागि सफा डिजाइन (page-break-safe क्लास प्रयोग गरिएको छ)
-        let content = `<div style="font-family: sans-serif; max-width: 800px; margin: auto;">`;
-        content += `<h2 style="text-align: center; margin-bottom: 5px;">बाइबल Quiz प्रश्नहरु</h2>`;
-        content += `<h3 style="text-align: center; margin-top: 0; color: #555;">पुस्तक : ${chapterDetails} बाट</h3><hr style="margin-bottom:20px;">`;
-
-        data.forEach((q, index) => {
-            let nepaliNum = toNepaliNum(index + 1);
-            // page-break-safe ले पानाको बिचमा प्रश्न काटिन दिँदैन
-            content += `<div class="page-break-safe" style="margin-bottom: 20px;">`;
-            content += `<div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${nepaliNum}) ${q.questionText}</div>`;
-            content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
-            content += `A: ${q.optionA}<br>`;
-            content += `B: ${q.optionB}<br>`;
-            content += `C: ${q.optionC}<br>`;
-            content += `D: ${q.optionD}`;
-            content += `</div>`;
-            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px;">correctAnswer: ${q.correctAnswer}</div>`;
+            // यहाँ सही उत्तर र पदको सन्दर्भ थपिएको छ
+            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;">सही उत्तर: ${q.correctAnswer} <span style="font-size: 14px; font-weight: normal; color: #555;">(सन्दर्भ: ${referenceText})</span></div>`;
             content += `</div>`;
         });
         
         content += `</div>`;
         printDiv.innerHTML = content;
 
-        // ब्राउजरको प्रिन्ट (Save as PDF) डायलग खोल्ने
         window.print();
     }
 </script>
 
 </body>
 </html>
+: ${q.correctAnswer} <span style='font-size: 14px; font-weight: normal; color: #555;'>(सन्दर्भ: ${refere
