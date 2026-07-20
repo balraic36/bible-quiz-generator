@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NNRV Quiz Generator (Smart Limit)</title>
+    <title>NNRV Quiz Generator (Pro Version)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
         .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
@@ -16,21 +16,22 @@
         .btn-generate { background-color: #f55036; color: white; }
         .btn-generate:hover { background-color: #d43f27; }
         .btn-generate:disabled { background-color: #ccc; cursor: not-allowed; }
-        .btn-download { background-color: #28a745; color: white; display: none; }
-        .btn-download:hover { background-color: #218838; }
+        .btn-download-json { background-color: #28a745; color: white; display: none; margin-top: 15px; }
+        .btn-download-json:hover { background-color: #218838; }
+        .btn-download-csv { background-color: #107c41; color: white; display: none; margin-top: 10px; } /* Excel Green Color */
+        .btn-download-csv:hover { background-color: #0b5e31; }
         .btn-fetch { background-color: #2F5597; color: white; padding: 10px; font-size: 14px; height: 100%; }
         .btn-fetch:hover { background-color: #1e3a68; }
         #status { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center; line-height: 1.4; }
         .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-top: 5px; }
         .flex-row > div { flex: 1; }
-        .info-text { font-size: 11px; color: #666; margin-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Smart Token Manager & Auto Fetch</div>
+    <div class="subtitle">Smart Limit + Excel Export</div>
     
     <label>Groq API Key:</label>
     <input type="password" id="apiKey" placeholder="gsk_...">
@@ -125,7 +126,6 @@
         </optgroup>
     </select>
 
-    <!-- नयाँ: कुन देखि कुन अध्यायसम्म छान्ने र तान्ने -->
     <div class="flex-row">
         <div>
             <label>सुरु अध्याय:</label>
@@ -150,12 +150,13 @@
     
     <div id="status"></div>
 
-    <button class="btn-download" id="downloadBtn" onclick="downloadJSON()">JSON डाउनलोड गर्नुहोस् ⬇️</button>
+    <button class="btn-download-json" id="downloadJsonBtn" onclick="downloadJSON()">JSON डाउनलोड गर्नुहोस् ⬇️</button>
+    <button class="btn-download-csv" id="downloadCsvBtn" onclick="downloadCSV()">Excel (CSV) डाउनलोड गर्नुहोस् 📊</button>
 </div>
 
 <script>
     let generatedData = null;
-    let fullBookData = null; // पुस्तकको डेटा सेभ गर्न
+    let fullBookData = null; 
     let currentBookCode = "";
 
     async function fetchFromGitHub() {
@@ -180,7 +181,6 @@
         statusEl.style.color = "#007bff";
 
         try {
-            // यदि एउटै पुस्तक छ भने इन्टरनेटबाट फेरि नतान्ने
             if(currentBookCode !== bookCode || !fullBookData) {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error("डेटा भेटिएन।");
@@ -193,19 +193,16 @@
                 currentBookCode = bookCode;
             }
 
-            // अटोमेटिक लिमिटर फङ्सन कल गर्ने
             let safeData = processAndLimitData(fullBookData, startCh, endCh);
-            
             textArea.value = typeof safeData.text === 'string' ? safeData.text : JSON.stringify(safeData.text, null, 2);
             
-            // यदि लिमिटले गर्दा अन्तिम अध्याय घट्यो भने UI अपडेट गर्ने
             document.getElementById('endCh').value = safeData.actualEndCh;
             let finalRange = startCh === safeData.actualEndCh ? `${startCh}` : `${startCh}-${safeData.actualEndCh}`;
             chapterDetails.value = `${bookName} ${finalRange}`;
 
             if(safeData.wasLimited) {
-                statusEl.innerText = `⚠️ टोकन लिमिट सुरक्षित गर्न अध्याय ${startCh} देखि ${safeData.actualEndCh} सम्म मात्र राखिएको छ। यो भन्दा धेरै राख्दा एरर आउँछ।`;
-                statusEl.style.color = "#d9534f"; // सुन्तला/रातो रङ्ग
+                statusEl.innerText = `⚠️ टोकन लिमिट सुरक्षित गर्न अध्याय ${startCh} देखि ${safeData.actualEndCh} सम्म मात्र राखिएको छ।`;
+                statusEl.style.color = "#d9534f"; 
             } else {
                 statusEl.innerText = `✅ अध्याय ${finalRange} सफलतापूर्वक तानियो! अब Generate थिच्नुहोस्।`;
                 statusEl.style.color = "green";
@@ -218,23 +215,18 @@
         }
     }
 
-    // स्मार्ट टोकन लिमिटर (१५,००० अक्षरको सुरक्षित सीमा)
     function processAndLimitData(data, start, end) {
         const SAFE_CHAR_LIMIT = 15000; 
-        
         let rawString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
         
-        // डेटाको संरचना थाहा नभएमा वा ठूलो फाइल भएमा सीधै अक्षरको गन्ती गरेर काट्ने
         if (rawString.length > SAFE_CHAR_LIMIT) {
             let safeString = rawString.substring(0, SAFE_CHAR_LIMIT);
-            // सुरक्षित ठाउँमा टुङ्ग्याउनको लागि
             let lastBrace = safeString.lastIndexOf('}');
             if (lastBrace > SAFE_CHAR_LIMIT * 0.7) {
                 safeString = safeString.substring(0, lastBrace + 1) + "\n\n... (Token Limit को कारण अटोमेटिक मिलाइएको)";
             }
             return { text: safeString, actualEndCh: start, wasLimited: true };
         }
-        
         return { text: data, actualEndCh: end, wasLimited: false };
     }
 
@@ -245,7 +237,9 @@
         const difficulty = document.getElementById('difficulty').value;
         const bibleText = document.getElementById('bibleText').value.trim();
         const statusEl = document.getElementById('status');
-        const downloadBtn = document.getElementById('downloadBtn');
+        
+        const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+        const downloadCsvBtn = document.getElementById('downloadCsvBtn');
 
         if (!apiKey || !chapterDetails || !bibleText) {
             statusEl.innerText = "कृपया API Key र बाँकी विवरणहरू भर्नुहोस्!";
@@ -256,7 +250,8 @@
         statusEl.innerText = "प्रश्नहरू बन्दैछन्... कृपया पर्खनुहोस् ⏳";
         statusEl.style.color = "#007bff";
         document.getElementById('generateBtn').disabled = true;
-        downloadBtn.style.display = 'none';
+        downloadJsonBtn.style.display = 'none';
+        downloadCsvBtn.style.display = 'none';
 
         const prompt = `तपाईं एक NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
 प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
@@ -291,7 +286,6 @@ ${bibleText}`;
                     'Authorization': `Bearer ${apiKey}`
                 },
                 body: JSON.stringify({
-                    // नयाँ अपडेट गरिएको मोडल
                     model: "llama-3.3-70b-versatile",
                     messages: [
                         { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
@@ -318,7 +312,8 @@ ${bibleText}`;
                 
                 statusEl.innerText = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
                 statusEl.style.color = "green";
-                downloadBtn.style.display = 'block';
+                downloadJsonBtn.style.display = 'block';
+                downloadCsvBtn.style.display = 'block';
             } else {
                 throw new Error("API ले सही उत्तर संरचना पठाएन।");
             }
@@ -331,6 +326,7 @@ ${bibleText}`;
         }
     }
 
+    // JSON फाइल डाउनलोड गर्ने
     function downloadJSON() {
         if (!generatedData) return;
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
@@ -341,6 +337,40 @@ ${bibleText}`;
         const a = document.createElement("a");
         a.href = url;
         a.download = `nnrv_${safeName}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    // Excel (CSV) फाइल डाउनलोड गर्ने नयाँ फङ्सन
+    function downloadCSV() {
+        if (!generatedData) return;
+        const data = JSON.parse(generatedData);
+        if (!data || !data.length) return;
+
+        // कोलमको नामहरू (Headers) निकाल्ने
+        const headers = Object.keys(data[0]);
+        let csvContent = headers.join(",") + "\n";
+
+        // डेटा राख्ने (नेपाली अक्षर वा कमाले नबिगारोस् भनेर मिलाइएको)
+        data.forEach(row => {
+            let values = headers.map(header => {
+                let val = row[header] ? row[header].toString() : "";
+                return `"${val.replace(/"/g, '""')}"`;
+            });
+            csvContent += values.join(",") + "\n";
+        });
+
+        // \uFEFF ले एक्सेलमा नेपाली (UTF-8) फन्ट सपोर्ट गराउँछ
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        
+        let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        if (!safeName) safeName = "questions";
+        
+        a.download = `nnrv_${safeName}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
