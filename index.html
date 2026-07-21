@@ -165,7 +165,7 @@
     <label>बाइबलको पाठ (Text):</label>
     <textarea id="bibleText" rows="6" placeholder="अध्याय छानेर 'पाठ तान्नुहोस्' थिच्नुहोस्..."></textarea>
 
-    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: श्रेष्ठगीत १):</label>
+    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: रूथ २):</label>
     <input type="text" id="chapterDetails" placeholder="अटोमेटिक भरिनेछ...">
 
     <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू बनाउनुहोस् (Generate)</button>
@@ -189,6 +189,48 @@
 
     function toNepaliNum(num) {
         return num.toString().replace(/\d/g, d => '०१२३४५६७८९'[d]);
+    }
+
+    // नयाँ थपिएको फिल्टर लजिक (जसले अध्यायलाई ठ्याक्कै काट्छ)
+    function extractChapters(data, start, end) {
+        if (!data) return data;
+        
+        if (Array.isArray(data)) {
+            // यदि भित्रको अब्जेक्टमा 'chapter' भन्ने कुरा छ भने
+            if (data.length > 0 && typeof data[0] === 'object' && 'chapter' in data[0]) {
+                return data.filter(item => item.chapter >= start && item.chapter <= end);
+            }
+            // नत्र सामान्य Array हो भने काटेर लिने (Array को index 0 भनेको Chapter 1 हो)
+            return data.slice(start - 1, end);
+        } else if (typeof data === 'object' && data !== null) {
+            let result = {};
+            let found = false;
+            for (let i = start; i <= end; i++) {
+                if (data[i] || data[i.toString()]) {
+                    result[i] = data[i] || data[i.toString()];
+                    found = true;
+                }
+            }
+            return found ? result : data;
+        }
+        return data;
+    }
+
+    function processAndLimitData(data, start, end) {
+        const geminiKey = document.getElementById('geminiKey').value.trim();
+        const SAFE_CHAR_LIMIT = geminiKey ? 100000 : 15000; 
+        
+        let rawString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        
+        if (rawString.length > SAFE_CHAR_LIMIT) {
+            let safeString = rawString.substring(0, SAFE_CHAR_LIMIT);
+            let lastBrace = safeString.lastIndexOf('}');
+            if (lastBrace > SAFE_CHAR_LIMIT * 0.7) {
+                safeString = safeString.substring(0, lastBrace + 1) + "\n\n... (Token Limit को कारण अटोमेटिक मिलाइएको)";
+            }
+            return { text: safeString, actualEndCh: start, wasLimited: true };
+        }
+        return { text: data, actualEndCh: end, wasLimited: false };
     }
 
     async function fetchFromGitHub() {
@@ -222,7 +264,10 @@
                 currentBookCode = bookCode;
             }
 
-            let safeData = processAndLimitData(fullBookData, startCh, endCh);
+            // यहाँनिर फिल्टर गर्ने फङ्सन प्रयोग गरिएको छ
+            let filteredData = extractChapters(fullBookData, startCh, endCh);
+            let safeData = processAndLimitData(filteredData, startCh, endCh);
+            
             textArea.value = typeof safeData.text === 'string' ? safeData.text : JSON.stringify(safeData.text, null, 2);
             
             document.getElementById('endCh').value = safeData.actualEndCh;
@@ -242,24 +287,6 @@
         }
     }
 
-    function processAndLimitData(data, start, end) {
-        const geminiKey = document.getElementById('geminiKey').value.trim();
-        const SAFE_CHAR_LIMIT = geminiKey ? 100000 : 15000; 
-        
-        let rawString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-        
-        if (rawString.length > SAFE_CHAR_LIMIT) {
-            let safeString = rawString.substring(0, SAFE_CHAR_LIMIT);
-            let lastBrace = safeString.lastIndexOf('}');
-            if (lastBrace > SAFE_CHAR_LIMIT * 0.7) {
-                safeString = safeString.substring(0, lastBrace + 1) + "\n\n... (Token Limit को कारण अटोमेटिक मिलाइएको)";
-            }
-            return { text: safeString, actualEndCh: start, wasLimited: true };
-        }
-        return { text: data, actualEndCh: end, wasLimited: false };
-    }
-
-    // १. GROQ कल गर्ने फङ्सन
     async function callGroq(apiKey, prompt) {
         const url = `https://api.groq.com/openai/v1/chat/completions`;
         const response = await fetch(url, {
@@ -284,7 +311,6 @@
         return data.choices[0].message.content;
     }
 
-    // २. GEMINI कल गर्ने फङ्सन (Strict JSON हटाइएको छ)
     async function callGemini(apiKey, prompt, modelVersion) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelVersion}:generateContent?key=${apiKey}`;
         const response = await fetch(url, {
@@ -357,7 +383,6 @@ ${bibleText}`;
         let success = false;
         let lastErrorMsg = "";
 
-        // स्टेप १: Groq ट्राइ गर्ने
         if (groqKey) {
             try {
                 statusEl.innerHTML = "१. <b>Groq</b> बाट प्रश्नहरू बन्दैछन्... ⏳";
@@ -369,7 +394,6 @@ ${bibleText}`;
             }
         }
 
-        // स्टेप २: Groq फेल भएमा Gemini Flash
         if (geminiKey && !success) {
             try {
                 if (groqKey) {
@@ -382,7 +406,6 @@ ${bibleText}`;
                 success = true;
             } catch (error) {
                 lastErrorMsg = error.message;
-                // स्टेप ३: Flash फेल भएमा Gemini Pro
                 try {
                     statusEl.innerHTML = "⚠️ Flash फेल भयो। अन्तिम विकल्प <b>Gemini Pro</b> ट्राइ गर्दैछ... ⏳";
                     jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-pro');
@@ -393,7 +416,6 @@ ${bibleText}`;
             }
         }
 
-        // यदि कुनै पनि AI ले काम गरेन भने वास्तविक Error देखाउने
         if (!success) {
              statusEl.innerHTML = `❌ त्रुटि: ${lastErrorMsg}<br><span style="font-size:12px; color:#555;">(माथिको म्यासेज पढेर Key चेक गर्नुहोस्)</span>`;
              statusEl.style.color = "red";
@@ -401,7 +423,6 @@ ${bibleText}`;
              return;
         }
 
-        // सफलता पाएमा JSON मिलाएर देखाउने
         if (success && jsonString) {
             try {
                 jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -422,7 +443,6 @@ ${bibleText}`;
         document.getElementById('generateBtn').disabled = false;
     }
 
-    // डाउनलोड फङ्सनहरू (अघिकै)
     function downloadJSON() {
         if (!generatedData) return;
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
