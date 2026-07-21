@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NNRV Quiz Generator (Pro Auto-Failover)</title>
+    <title>NNRV Quiz Generator (Pro Multi-Engine Failover)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
         .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
@@ -47,15 +47,15 @@
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Auto-Failover System & Advanced Chapter Parser</div>
+    <div class="subtitle">Multi-Engine Smart Failover System</div>
     
     <div class="api-box">
-        <label>१. Groq API Key (gsk_...):</label>
+        <label>१. Groq API Key (सबैभन्दा छिटो):</label>
         <input type="password" id="groqKey" placeholder="gsk_...">
         
-        <label>२. Gemini API Key (AIza...):</label>
+        <label>२. Gemini API Key (विकल्प):</label>
         <input type="password" id="geminiKey" placeholder="AIza...">
-        <div class="hint-text">💡 दुवै Key राख्नुभयो भने, एउटा फेल हुँदा एपले आफैं अर्को प्रयोग गर्छ!</div>
+        <div class="hint-text">💡 Key नभएमा वा एउटा फेल हुँदा एपले स्वतः बैकअप AI इन्जिन प्रयोग गर्नेछ।</div>
     </div>
 
     <div class="flex-row">
@@ -182,37 +182,41 @@
 
 <div id="printArea"></div>
 
-<<script>
+<script>
     let generatedData = null;
     let fullBookData = null; 
     let currentBookCode = "";
 
+    // सच्याइएको नेपाली अंक रूपान्तरण
     function toNepaliNum(num) {
-        return num.toString().replace(/\d/g, d => '०।'[d] || d); 
+        const nepDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
+        return num.toString().replace(/\d/g, d => nepDigits[d]);
     }
 
-    // 💡 नयाँ: अध्याय अटोमेटिक चेक गर्ने र फिल्टर गर्ने फङ्सन
+    // स्मार्ट अध्याय फिल्टर तथा सीमा चेक
     function extractChaptersAndCheckLimit(data, start, end) {
         let chaptersArray = data.chapters || data;
         let maxChapter = 1;
         let warningMsg = "";
 
         if (Array.isArray(chaptersArray)) {
-            // १. पुस्तकमा जम्मा कति अध्याय छन् भनेर पत्ता लगाउने
-            maxChapter = Math.max(...chaptersArray.map(ch => parseInt(ch.chapter || ch.chapterNumber || ch.id) || 1));
-            
-            // २. यदि प्रयोगकर्ताले हालेको अध्याय जम्मा अध्यायभन्दा बढी छ भने आफैं मिलाउने
+            let chapterNums = chaptersArray.map(ch => parseInt(ch.chapter || ch.chapterNumber || ch.id)).filter(n => !isNaN(n));
+            if (chapterNums.length > 0) {
+                maxChapter = Math.max(...chapterNums);
+            } else {
+                maxChapter = chaptersArray.length;
+            }
+
             if (end > maxChapter) {
-                warningMsg = `⚠️ यो पुस्तकमा जम्मा ${maxChapter} अध्याय मात्र छन्, त्यसैले ${maxChapter} सम्म मात्र तानिएको छ।`;
+                warningMsg = `⚠️ यो पुस्तकमा जम्मा ${maxChapter} अध्याय मात्र छन्। अध्याय ${maxChapter} सम्म तानिएको छ।`;
                 end = maxChapter;
-                document.getElementById('endCh').value = maxChapter; // इनपुट बक्स पनि आफैं सच्याइदिने
+                document.getElementById('endCh').value = maxChapter;
             }
             if (start > maxChapter) {
                 start = maxChapter;
                 document.getElementById('startCh').value = maxChapter;
             }
 
-            // ३. चाहिएको अध्याय मात्र फिल्टर गरेर निकाल्ने
             let extracted = chaptersArray.filter(ch => {
                 let chNum = parseInt(ch.chapter || ch.chapterNumber || ch.id);
                 return (!isNaN(chNum)) && (chNum >= start && chNum <= end);
@@ -257,16 +261,13 @@
                 currentBookCode = bookCode;
             }
 
-            // नयाँ अटोमेटिक अध्याय चेकर प्रयोग गरिएको
             let processed = extractChaptersAndCheckLimit(fullBookData, startCh, endCh);
             
-            // टोकन लिमिट हटाइयो, अब सिधै पूरै टेक्स्ट राख्ने
             textArea.value = typeof processed.extractedData === 'string' ? processed.extractedData : JSON.stringify(processed.extractedData, null, 2);
             
             let finalRange = startCh === processed.finalEndCh ? `${startCh}` : `${startCh}-${processed.finalEndCh}`;
             chapterDetails.value = `${bookName} ${finalRange}`;
 
-            // म्यासेज देखाउने लजिक
             if(processed.message) {
                 statusEl.innerHTML = processed.message + "<br>✅ पाठ तानियो! अब Generate थिच्नुहोस्।";
                 statusEl.style.color = "#d9534f"; 
@@ -280,25 +281,75 @@
         }
     }
 
-    // 💡 नयाँ: लोकल API सँग कुरा गर्ने फङ्सन (Groq/Gemini हटाइयो)
-    async function callLocalAPI(prompt) {
-        const url = `http://127.0.0.1:5000/generate-quiz`; 
+    // Engine 1: Groq API
+    async function callGroq(apiKey, prompt) {
+        const url = `https://api.groq.com/openai/v1/chat/completions`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.3,
+                max_tokens: 4000
+            })
+        });
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error("Groq Error: " + (errData.error?.message || "सर्भरले काम गरेन।"));
+        }
+        const data = await response.json();
+        return data.choices[0].message.content;
+    }
+
+    // Engine 2: Gemini API
+    async function callGemini(apiKey, prompt, modelVersion) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelVersion}:generateContent?key=${apiKey}`;
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: prompt })
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.3 } 
+            })
         });
-        
         if (!response.ok) {
             const errData = await response.json();
-            throw new Error(errData.error || "सर्भरले काम गरेन। Termux चेक गर्नुहोस्।");
+            throw new Error("Gemini Error: " + (errData.error?.message || "सर्भरले काम गरेन।"));
         }
-        
         const data = await response.json();
-        return data.result; 
+        return data.candidates[0].content.parts[0].text;
     }
 
+    // Engine 3: Backup Free Engine (No Key Needed)
+    async function callFreeBackupEngine(prompt) {
+        const url = "https://text.pollinations.ai/";
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: [
+                    { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
+                    { role: "user", content: prompt }
+                ],
+                model: "openai",
+                jsonMode: true
+            })
+        });
+        if (!response.ok) {
+            throw new Error("Free Backup Engine Busy");
+        }
+        return await response.text();
+    }
+
+    // Smart Multi-Engine Auto-Failover Logic
     async function generateQuestions() {
+        const groqKey = document.getElementById('groqKey').value.trim();
+        const geminiKey = document.getElementById('geminiKey').value.trim();
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
         const qCount = document.getElementById('qCount').value;
         const difficulty = document.getElementById('difficulty').value;
@@ -340,32 +391,74 @@
 बाइबल पाठ:
 ${bibleText}`;
 
-        try {
-            statusEl.innerHTML = "⚡ लोकल AI बाट प्रश्नहरू बन्दैछन्... कृपया पर्खनुहोस् ⏳";
-            statusEl.style.color = "#007bff";
-            
-            // लोकल Termux सर्भरलाई रिक्वेस्ट पठाउने
-            let resultText = await callLocalAPI(prompt);
-            
-            // JSON डाटा क्लिन गर्ने
-            let jsonString = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
-            const jsonObject = JSON.parse(jsonString);
-            const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
-            
-            generatedData = JSON.stringify(finalArray, null, 4); 
-            
-            statusEl.innerHTML = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
-            statusEl.style.color = "green";
-            downloadGroup.style.display = 'flex'; 
-        } catch (error) {
-            statusEl.innerHTML = `❌ त्रुटि: ${error.message}`;
+        let jsonString = null;
+        let success = false;
+
+        // १. इन्जिन १ (Groq) ट्राइ गर्ने
+        if (groqKey && !success) {
+            try {
+                statusEl.innerHTML = "⚡ <b>Groq (इन्जिन १)</b> बाट प्रश्नहरू बन्दैछन्... ⏳";
+                statusEl.style.color = "#007bff";
+                jsonString = await callGroq(groqKey, prompt);
+                success = true;
+            } catch (error) {
+                console.warn("Groq failed, trying fallback...", error);
+            }
+        }
+
+        // २. इन्जिन २ (Gemini) ट्राइ गर्ने
+        if (geminiKey && !success) {
+            try {
+                statusEl.innerHTML = "🔄 Groq उपलब्ध भएन। <b>Gemini (इन्जिन २)</b> ट्राइ गर्दैछ... ⏳";
+                statusEl.style.color = "#007bff";
+                jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-flash');
+                success = true;
+            } catch (error) {
+                console.warn("Gemini Flash failed, trying Pro...", error);
+                try {
+                    jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-pro');
+                    success = true;
+                } catch (errPro) {
+                    console.warn("Gemini Pro failed...", errPro);
+                }
+            }
+        }
+
+        // ३. इन्जिन ३ (Free Backup Engine) ट्राइ गर्ने
+        if (!success) {
+            try {
+                statusEl.innerHTML = "🔄 <b>निःशुल्क ब्याकअप AI (इन्जिन ३)</b> प्रयोग गर्दैछ... ⏳";
+                statusEl.style.color = "#007bff";
+                jsonString = await callFreeBackupEngine(prompt);
+                success = true;
+            } catch (error) {
+                console.error("Backup Engine failed...", error);
+            }
+        }
+
+        if (success && jsonString) {
+            try {
+                jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+                const jsonObject = JSON.parse(jsonString);
+                const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
+                
+                generatedData = JSON.stringify(finalArray, null, 4); 
+                
+                statusEl.innerHTML = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
+                statusEl.style.color = "green";
+                downloadGroup.style.display = 'flex'; 
+            } catch (parseError) {
+                statusEl.innerHTML = "❌ त्रुटि: AI ले सही ढाँचामा प्रश्न दिएन। फेरि प्रयास गर्नुहोस्।";
+                statusEl.style.color = "red";
+            }
+        } else {
+            statusEl.innerHTML = "❌ त्रुटि: सबै AI इन्जिन व्यस्त छन्। कृपया १ मिनेटपछि पुनः प्रयास गर्नुहोस्।";
             statusEl.style.color = "red";
         }
 
         document.getElementById('generateBtn').disabled = false;
     }
 
-    // तलका डाउनलोड फङ्सनहरू (downloadJSON, downloadCSV, downloadWord, downloadPDF) पुरानै जस्ताको तस्तै राख्नुहोस्।
     function downloadJSON() {
         if (!generatedData) return;
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
