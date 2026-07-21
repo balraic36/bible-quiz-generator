@@ -3,551 +3,424 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NNRV Quiz Generator (Groq + Gemini)</title>
+    <title>NNRV Bible Quiz Generator Pro (Groq AI)</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
-        .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
-        h2 { text-align: center; color: #f55036; margin-top: 0; }
-        .subtitle { text-align: center; color: #555; font-size: 13px; margin-bottom: 20px; }
-        label { font-weight: 600; margin-top: 15px; display: block; font-size: 14px; color: #333; }
-        input, select, textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
-        input:focus, select:focus, textarea:focus { border-color: #f55036; outline: none; }
-        button { width: 100%; padding: 14px; border: none; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.3s; }
-        
-        .btn-generate { background-color: #f55036; color: white; margin-top: 20px; }
-        .btn-generate:hover { background-color: #d43f27; }
-        .btn-generate:disabled { background-color: #ccc; cursor: not-allowed; }
-        
-        .btn-fetch { background-color: #2F5597; color: white; padding: 10px; font-size: 14px; height: 100%; }
-        .btn-fetch:hover { background-color: #1e3a68; }
-
-        .download-group { display: none; flex-direction: column; gap: 10px; margin-top: 20px; }
-        .btn-json { background-color: #28a745; color: white; }
-        .btn-csv { background-color: #107c41; color: white; }
-        .btn-word { background-color: #2b579a; color: white; }
-        .btn-pdf { background-color: #d9534f; color: white; }
-        .btn-copy { background-color: #6c757d; color: white; }
-        .btn-copy:hover { background-color: #5a6268; }
-        
-        #status { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center; line-height: 1.5; }
-        .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-top: 5px; }
-        .flex-row > div { flex: 1; }
-        
-        .api-box { background-color: #fdfdfd; border: 1px solid #e0e0e0; padding: 10px; border-radius: 8px; margin-top: 10px; }
-        .hint-text { font-size: 12px; color: #555; margin-top: 8px; line-height: 1.4; }
-
-        #printArea { display: none; }
-        @media print {
-            body { background-color: white !important; margin: 0; padding: 0; }
-            .container { display: none !important; }
-            #printArea { display: block !important; padding: 20px; color: black; }
-            .page-break-safe { page-break-inside: avoid; break-inside: avoid; margin-bottom: 20px; }
+        :root {
+            --primary-color: #2F5597;
+            --secondary-color: #1F3864;
+            --success-color: #28a745;
+            --bg-color: #f0f4f8;
+            --card-bg: #ffffff;
         }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 12px;
+            background-color: var(--bg-color);
+            margin: 0;
+        }
+
+        .container {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 600px;
+            margin: auto;
+        }
+
+        h2 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        label {
+            font-weight: 600;
+            display: block;
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cccccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .row .form-group {
+            flex: 1;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-generate {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-generate:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-download {
+            background-color: var(--success-color);
+            color: white;
+            display: none;
+        }
+
+        .btn-copy {
+            background-color: #17a2b8;
+            color: white;
+            display: none;
+        }
+
+        #status {
+            margin-top: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        /* Preview Section */
+        #previewContainer {
+            margin-top: 25px;
+            display: none;
+        }
+
+        .preview-title {
+            font-weight: bold;
+            font-size: 16px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 5px;
+            margin-bottom: 12px;
+        }
+
+        .q-card {
+            background: #f8f9fa;
+            border-left: 4px solid var(--primary-color);
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .q-card strong { color: #111; }
+        .q-card .ref { color: #28a745; font-weight: 600; margin-top: 4px; }
+        .q-card .opt { color: #555; margin-left: 10px; }
+        .q-card .correct { color: #d9534f; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Groq + Gemini Smart Engine</div>
+    <h2>📖 NNRV बाइबल क्विज जेनेरेटर (Pro)</h2>
     
-    <div class="api-box">
-        <label>१. Groq API Key (मुख्य र छिटो):</label>
-        <input type="password" id="groqKey" placeholder="gsk_...">
-        
-        <label>२. Gemini API Key (वैकल्पिक):</label>
-        <input type="password" id="geminiKey" placeholder="AIza...">
-        <div class="hint-text">💡 <b>जानकारी:</b> Groq ले काम नगरेमा वा लिमिट पुगेमा एपले स्वतः Gemini प्रयोग गर्नेछ।</div>
+    <div class="form-group">
+        <label>Groq API Key:</label>
+        <input type="password" id="apiKey" placeholder="आफ्नो Groq API Key यहाँ राख्नुहोस्">
     </div>
 
-    <div class="flex-row">
-        <div>
-            <label>प्रश्न संख्या:</label>
-            <input type="number" id="qCount" value="20" min="1" max="50">
-        </div>
-        <div>
-            <label>प्रश्नको स्तर:</label>
-            <select id="difficulty">
-                <option value="Mixed">सबै मिसाएको</option>
-                <option value="Easy">सजिलो मात्र</option>
-                <option value="Medium">मध्यम मात्र</option>
-                <option value="Hard">गाह्रो मात्र</option>
+    <div class="row">
+        <div class="form-group">
+            <label>AI मोडल (Model):</label>
+            <select id="modelSelect">
+                <option value="llama-3.3-70b-versatile">Llama 3.3 70B (अत्यन्तै उत्कृष्ट)</option>
+                <option value="llama3-70b-8192">Llama 3 70B (छिटो)</option>
+                <option value="llama-3.1-8b-instant">Llama 3.1 8B (अति द्रुत)</option>
             </select>
         </div>
-    </div>
-
-    <label>पुस्तक छान्नुहोस्:</label>
-    <select id="bookSelect">
-        <optgroup label="पुरानो करार">
-            <option value="GEN">उत्पत्ति (Genesis)</option>
-            <option value="EXO">प्रस्थान (Exodus)</option>
-            <option value="LEV">लेवी (Leviticus)</option>
-            <option value="NUM">गन्ती (Numbers)</option>
-            <option value="DEU">व्यवस्था (Deuteronomy)</option>
-            <option value="JOS">यहोशू (Joshua)</option>
-            <option value="JDG">न्यायकर्ता (Judges)</option>
-            <option value="RUT">रूथ (Ruth)</option>
-            <option value="1SA">१ शमूएल (1 Samuel)</option>
-            <option value="2SA">२ शमूएल (2 Samuel)</option>
-            <option value="1KI">१ राजा (1 Kings)</option>
-            <option value="2KI">२ राजा (2 Kings)</option>
-            <option value="1CH">१ इतिहास (1 Chronicles)</option>
-            <option value="2CH">२ इतिहास (2 Chronicles)</option>
-            <option value="EZR">एज्रा (Ezra)</option>
-            <option value="NEH">नहेम्याह (Nehemiah)</option>
-            <option value="EST">एस्तर (Esther)</option>
-            <option value="JOB">अय्यूब (Job)</option>
-            <option value="PSA">भजनसंग्रह (Psalms)</option>
-            <option value="PRO">हितोपदेश (Proverbs)</option>
-            <option value="ECC">उपदेशक (Ecclesiastes)</option>
-            <option value="SNG">श्रेष्ठगीत (Song of Solomon)</option>
-            <option value="ISA">यशैया (Isaiah)</option>
-            <option value="JER">यर्मिया (Jeremiah)</option>
-            <option value="LAM">विलाप (Lamentations)</option>
-            <option value="EZK">इजकिएल (Ezekiel)</option>
-            <option value="DAN">दानिएल (Daniel)</option>
-            <option value="HOS">होशे (Hosea)</option>
-            <option value="JOL">योएल (Joel)</option>
-            <option value="AMO">आमोस (Amos)</option>
-            <option value="OBA">ओबद्याह (Obadiah)</option>
-            <option value="JON">योना (Jonah)</option>
-            <option value="MIC">मीका (Micah)</option>
-            <option value="NAM">नहूम (Nahum)</option>
-            <option value="HAB">हबकूक (Habakkuk)</option>
-            <option value="ZEP">सपन्याह (Zephaniah)</option>
-            <option value="HAG">हाग्गै (Haggai)</option>
-            <option value="ZEC">जकरिया (Zechariah)</option>
-            <option value="MAL">मलाकी (Malachi)</option>
-        </optgroup>
-        <optgroup label="नयाँ करार">
-            <option value="MAT">मत्ती (Matthew)</option>
-            <option value="MAR">मर्कूस (Mark)</option>
-            <option value="LUK">लूका (Luke)</option>
-            <option value="JHN">यूहन्ना (John)</option>
-            <option value="ACT">प्रेरित (Acts)</option>
-            <option value="ROM">रोमी (Romans)</option>
-            <option value="1CO">१ कोरिन्थी (1 Corinthians)</option>
-            <option value="2CO">२ कोरिन्थी (2 Corinthians)</option>
-            <option value="GAL">गलाती (Galatians)</option>
-            <option value="EPH">एफिसी (Ephesians)</option>
-            <option value="PHP">फिलिप्पी (Philippians)</option>
-            <option value="COL">कलस्सी (Colossians)</option>
-            <option value="1TH">१ थिस्सलोनिकी (1 Thessalonians)</option>
-            <option value="2TH">२ थिस्सलोनिकी (2 Thessalonians)</option>
-            <option value="1TI">१ तिमोथी (1 Timothy)</option>
-            <option value="2TI">२ तिमोथी (2 Timothy)</option>
-            <option value="TIT">तीतस (Titus)</option>
-            <option value="PHM">फिलेमोन (Philemon)</option>
-            <option value="HEB">हिब्रू (Hebrews)</option>
-            <option value="JAS">याकूब (James)</option>
-            <option value="1PE">१ पत्रुस (1 Peter)</option>
-            <option value="2PE">२ पत्रुस (2 Peter)</option>
-            <option value="1JN">१ यूहन्ना (1 John)</option>
-            <option value="2JN">२ यूहन्ना (2 John)</option>
-            <option value="3JN">३ यूहन्ना (3 John)</option>
-            <option value="JUD">यहूदा (Jude)</option>
-            <option value="REV">प्रकाश (Revelation)</option>
-        </optgroup>
-    </select>
-
-    <div class="flex-row">
-        <div>
-            <label>सुरु अध्याय:</label>
-            <input type="number" id="startCh" value="1" min="1">
-        </div>
-        <div>
-            <label>अन्तिम अध्याय:</label>
-            <input type="number" id="endCh" value="2" min="1">
-        </div>
-        <div>
-            <button class="btn-fetch" onclick="fetchFromGitHub()">पाठ तान्नुहोस्</button>
+        <div class="form-group">
+            <label>पुस्तकको नाम:</label>
+            <input type="text" id="bookName" placeholder="उदा: रूथ, मत्ती">
         </div>
     </div>
 
-    <label>बाइबलको पाठ (Text):</label>
-    <textarea id="bibleText" rows="6" placeholder="अध्याय छानेर 'पाठ तान्नुहोस्' थिच्नुहोस्..."></textarea>
+    <div class="row">
+        <div class="form-group">
+            <label>समूह/वर्ग (Category):</label>
+            <input type="text" id="category" placeholder="उदा: पुराना नियम, इतिहास">
+        </div>
+        <div class="form-group">
+            <label>अध्याय र पद (Chapter/Verse):</label>
+            <input type="text" id="chapterVerse" placeholder="उदा: अध्याय १ (पद १-२२)">
+        </div>
+    </div>
 
-    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: रूथ २):</label>
-    <input type="text" id="chapterDetails" placeholder="अटोमेटिक भरिनेछ...">
+    <div class="row">
+        <div class="form-group">
+            <label>प्रश्नको प्रकार (Type):</label>
+            <select id="qType">
+                <option value="MCQ">बहुवैकल्पिक (MCQ - ४ विकल्प)</option>
+                <option value="DIRECT">सिधा प्रश्न (Direct Answer)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>संख्या (Count):</label>
+            <input type="number" id="qCount" value="10" min="1" max="50">
+        </div>
+    </div>
 
-    <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू बनाउनुहोस् (Generate)</button>
+    <div class="form-group">
+        <label>कठिनाई स्तर (Difficulty):</label>
+        <select id="difficulty">
+            <option value="Mixed">सबै मिसाएको (Mixed - Easy, Medium, Hard)</option>
+            <option value="Easy">सजिलो मात्र (Easy)</option>
+            <option value="Medium">मध्यम मात्र (Medium)</option>
+            <option value="Hard">गाह्रो मात्र (Hard)</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>बाइबलको पाठ्यभाग (Bible Text):</label>
+        <textarea id="bibleText" rows="6" placeholder="यहाँ बाइबलको अध्याय वा पदहरू पेस्ट गर्नुहोस्..."></textarea>
+    </div>
+
+    <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू तयार पार्नुहोस् (Generate)</button>
     
     <div id="status"></div>
 
-    <div class="download-group" id="downloadGroup">
-        <button class="btn-copy" onclick="copyToClipboard()">📋 क्लिपबोर्डमा टेक्स्ट कपि गर्नुहोस्</button>
-        <button class="btn-word" onclick="downloadWord()">📝 Word (DOC) डाउनलोड गर्नुहोस्</button>
-        <button class="btn-pdf" onclick="downloadPDF()">🖨️ PDF सेभ / प्रिन्ट गर्नुहोस्</button>
-        <button class="btn-csv" onclick="downloadCSV()">📊 Excel (CSV) डाउनलोड गर्नुहोस्</button>
-        <button class="btn-json" onclick="downloadJSON()">⬇️ JSON डाउनलोड गर्नुहोस्</button>
+    <button class="btn-download" id="downloadBtn" onclick="downloadJSON()">JSON फाइल डाउनलोड गर्नुहोस् ⬇️</button>
+    <button class="btn-copy" id="copyBtn" onclick="copyToClipboard()">JSON कपि गर्नुहोस् 📋</button>
+
+    <!-- Preview Box -->
+    <div id="previewContainer">
+        <div class="preview-title">बनेका प्रश्नहरूको नमुना (Live Preview)</div>
+        <div id="previewList"></div>
     </div>
 </div>
 
-<div id="printArea"></div>
-
 <script>
-    let generatedData = null;
-    let fullBookData = null; 
-    let currentBookCode = "";
-
-    function toNepaliNum(num) {
-        const nepDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
-        return num.toString().replace(/\d/g, d => nepDigits[d]);
-    }
-
-    function extractChaptersAndCheckLimit(data, start, end) {
-        let chaptersArray = data.chapters || data;
-        let maxChapter = 1;
-        let warningMsg = "";
-
-        if (Array.isArray(chaptersArray)) {
-            let chapterNums = chaptersArray.map(ch => parseInt(ch.chapter || ch.chapterNumber || ch.id)).filter(n => !isNaN(n));
-            if (chapterNums.length > 0) {
-                maxChapter = Math.max(...chapterNums);
-            } else {
-                maxChapter = chaptersArray.length;
-            }
-
-            if (end > maxChapter) {
-                warningMsg = `⚠️ यो पुस्तकमा जम्मा ${maxChapter} अध्याय मात्र छन्। अध्याय ${maxChapter} सम्म तानिएको छ।`;
-                end = maxChapter;
-                document.getElementById('endCh').value = maxChapter;
-            }
-            if (start > maxChapter) {
-                start = maxChapter;
-                document.getElementById('startCh').value = maxChapter;
-            }
-
-            let extracted = chaptersArray.filter(ch => {
-                let chNum = parseInt(ch.chapter || ch.chapterNumber || ch.id);
-                return (!isNaN(chNum)) && (chNum >= start && chNum <= end);
-            });
-
-            if (extracted.length === 0) {
-                extracted = chaptersArray.slice(start - 1, end);
-            }
-            return { extractedData: extracted, finalEndCh: end, message: warningMsg };
-        }
-        return { extractedData: data, finalEndCh: end, message: "" };
-    }
-
-    async function fetchFromGitHub() {
-        const bookSelect = document.getElementById('bookSelect');
-        const bookCode = bookSelect.value;
-        const bookName = bookSelect.options[bookSelect.selectedIndex].text.split(' ')[0];
-        
-        let startCh = parseInt(document.getElementById('startCh').value) || 1;
-        let endCh = parseInt(document.getElementById('endCh').value) || startCh;
-        
-        if (startCh > endCh) {
-            endCh = startCh;
-            document.getElementById('endCh').value = endCh;
-        }
-
-        const url = `https://raw.githubusercontent.com/iyamsamrat/NNRV_Bible/main/${bookCode}.json`;
-        const statusEl = document.getElementById('status');
-        const textArea = document.getElementById('bibleText');
-        const chapterDetails = document.getElementById('chapterDetails');
-
-        statusEl.innerHTML = `${bookName} तान्दै... ⏳`;
-        statusEl.style.color = "#007bff";
-
-        try {
-            if(currentBookCode !== bookCode || !fullBookData) {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("डेटा भेटिएन।");
-                const rawText = await response.text();
-                try { fullBookData = JSON.parse(rawText); } 
-                catch(e) { fullBookData = rawText; }
-                currentBookCode = bookCode;
-            }
-
-            let processed = extractChaptersAndCheckLimit(fullBookData, startCh, endCh);
-            
-            textArea.value = typeof processed.extractedData === 'string' ? processed.extractedData : JSON.stringify(processed.extractedData, null, 2);
-            
-            let finalRange = startCh === processed.finalEndCh ? `${startCh}` : `${startCh}-${processed.finalEndCh}`;
-            chapterDetails.value = `${bookName} ${finalRange}`;
-
-            if(processed.message) {
-                statusEl.innerHTML = processed.message + "<br>✅ पाठ तानियो! अब Generate थिच्नुहोस्।";
-                statusEl.style.color = "#d9534f"; 
-            } else {
-                statusEl.innerHTML = `✅ अध्याय ${finalRange} सफलतापूर्वक तानियो! अब Generate थिच्नुहोस्।`;
-                statusEl.style.color = "green";
-            }
-        } catch (error) {
-            statusEl.innerHTML = "❌ त्रुटि: पाठ तान्न सकिएन।";
-            statusEl.style.color = "red";
-        }
-    }
-
-    async function callGroq(apiKey, prompt) {
-        const url = `https://api.groq.com/openai/v1/chat/completions`;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({
-                model: "llama-3.3-70b-versatile",
-                messages: [
-                    { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
-                    { role: "user", content: prompt }
-                ],
-                response_format: { type: "json_object" },
-                temperature: 0.3,
-                max_tokens: 4000
-            })
-        });
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error?.message || "Groq सर्भरले काम गरेन।");
-        }
-        const data = await response.json();
-        return data.choices[0].message.content;
-    }
-
-    async function callGemini(apiKey, prompt, modelVersion) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelVersion}:generateContent?key=${apiKey}`;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.3 } 
-            })
-        });
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error?.message || "Gemini सर्भरले काम गरेन।");
-        }
-        const data = await response.json();
-        return data.candidates[0].content.parts[0].text;
-    }
+    let generatedQuestionsArray = [];
 
     async function generateQuestions() {
-        const groqKey = document.getElementById('groqKey').value.trim();
-        const geminiKey = document.getElementById('geminiKey').value.trim();
-        const chapterDetails = document.getElementById('chapterDetails').value.trim();
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const modelSelect = document.getElementById('modelSelect').value;
+        const bookName = document.getElementById('bookName').value.trim();
+        const category = document.getElementById('category').value.trim() || "बाइबल अध्ययन";
+        const chapterVerse = document.getElementById('chapterVerse').value.trim() || "१";
+        const qType = document.getElementById('qType').value;
         const qCount = document.getElementById('qCount').value;
         const difficulty = document.getElementById('difficulty').value;
         const bibleText = document.getElementById('bibleText').value.trim();
+
         const statusEl = document.getElementById('status');
-        const downloadGroup = document.getElementById('downloadGroup');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewList = document.getElementById('previewList');
 
-        if (!groqKey && !geminiKey) {
-            statusEl.innerHTML = "❌ कृपया कम्तिमा एउटा API Key (Groq वा Gemini) हाल्नुहोस्!";
+        if (!apiKey || !bookName || !bibleText) {
+            statusEl.innerText = "⚠️ कृपया Groq API Key, पुस्तकको नाम र बाइबलको पाठ अनिवार्य भर्नुहोस्!";
+            statusEl.style.backgroundColor = "#ffe6e6";
             statusEl.style.color = "red";
             return;
         }
 
-        if (!chapterDetails || !bibleText) {
-            statusEl.innerHTML = "❌ कृपया पाठ तान्नुहोस् र विवरण भर्नुहोस्!";
-            statusEl.style.color = "red";
-            return;
-        }
-
+        statusEl.innerText = "⏳ Groq AI ले प्रश्नहरू बनाउँदैछ... कृपया केही सेकेन्ड पर्खनुहोस्।";
+        statusEl.style.backgroundColor = "#e6f2ff";
+        statusEl.style.color = "#0056b3";
         document.getElementById('generateBtn').disabled = true;
-        downloadGroup.style.display = 'none';
+        downloadBtn.style.display = 'none';
+        copyBtn.style.display = 'none';
+        previewContainer.style.display = 'none';
 
-        const prompt = `तपाईं एक NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
-प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
-सन्दर्भ: ${chapterDetails}
+        // Prompt Logic
+        let formatInstructions = "";
+        if (qType === "MCQ") {
+            formatInstructions = `
+कडा नियमहरू:
+१. प्रत्येक प्रश्नको ४ वटा विकल्पहरू (optionA, optionB, optionC, optionD) हुनुपर्छ।
+२. सही उत्तरलाई सधैं A मा नराखी A, B, C, वा D मा यादृच्छिक रूपमा (Randomly) छ्यासमिस गरेर राख्नुहोस्। 'correctOption' मा सही विकल्पको अक्षर ("A", "B", "C", वा "D") लेख्नुहोस्।
+३. गलत विकल्पहरू (Distractors) एकदमै उस्तै-उस्तै लाग्ने, पाठ्यभागसँग मिल्दाजुल्दा र मानिस झुक्किने खालका हुनुपर्छ।
+४. 'answerWithRef' मा "सन्दर्भ" भन्ने शब्द प्रयोग नगर्नुहोस्। यसलाई सिधै "[पुस्तक अध्याय:पद] सही उत्तर वाक्य" को ढाँचामा लेख्नुहोस् (उदा: "${bookName} १:१०. \"हामी तपाईंका मानिसहरूकहाँ जानेछौं।\"")।
 
-नियम:
-१. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ।
-२. उक्त JSON Object भित्र "questions" नामको एउटा Array हुनुपर्छ।
-३. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
+प्रत्येक JSON अब्जेक्टको ढाँचा:
 {
-  "category": "Bible Quiz",
-  "bookDetails": "${chapterDetails}",
-  "verseReference": "...", 
-  "questionText": "...",
-  "optionA": "...",
-  "optionB": "...",
-  "optionC": "...",
-  "optionD": "...",
-  "correctAnswer": "A/B/C/D",
+  "category": "${category}",
+  "book": "${bookName}",
+  "chapterVerse": "${chapterVerse}",
+  "questionText": "प्रश्न...",
+  "optionA": "विकल्प A",
+  "optionB": "विकल्प B",
+  "optionC": "विकल्प C",
+  "optionD": "विकल्प D",
+  "correctOption": "A/B/C/D",
+  "correctAnswer": "सही उत्तरको वाक्य",
+  "answerWithRef": "${bookName} १:१०. \"सही उत्तर वाक्य।\"",
   "difficulty": "Easy/Medium/Hard"
-}
-४. "verseReference" मा ठ्याक्कै कुन पुस्तक, अध्याय र पदबाट प्रश्न सोधिएको हो, त्यो लेख्नुहोस् (जस्तै: दानिएल २:४५)।
-
-बाइबल पाठ:
-${bibleText}`;
-
-        let jsonString = null;
-        let success = false;
-        let errorMessage = "";
-
-        // १. इन्जिन १ (Groq) ट्राइ गर्ने
-        if (groqKey && !success) {
-            try {
-                statusEl.innerHTML = "⚡ <b>Groq (इन्जिन १)</b> बाट प्रश्नहरू बन्दैछन्... ⏳";
-                statusEl.style.color = "#007bff";
-                jsonString = await callGroq(groqKey, prompt);
-                success = true;
-            } catch (error) {
-                console.warn("Groq failed:", error);
-                errorMessage += `Groq Error: ${error.message} <br>`;
-            }
-        }
-
-        // २. इन्जिन २ (Gemini) ट्राइ गर्ने
-        if (geminiKey && !success) {
-            try {
-                statusEl.innerHTML = "🔄 <b>Gemini (इन्जिन २)</b> प्रयोग गर्दैछ... ⏳";
-                statusEl.style.color = "#007bff";
-                jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-flash');
-                success = true;
-            } catch (error) {
-                console.warn("Gemini Flash failed:", error);
-                try {
-                    jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-pro');
-                    success = true;
-                } catch (errPro) {
-                    errorMessage += `Gemini Error: ${errPro.message} <br>`;
-                }
-            }
-        }
-
-        if (success && jsonString) {
-            try {
-                jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
-                const jsonObject = JSON.parse(jsonString);
-                const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
-                
-                generatedData = JSON.stringify(finalArray, null, 4); 
-                
-                statusEl.innerHTML = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड वा कपि गर्नुहोस्।";
-                statusEl.style.color = "green";
-                downloadGroup.style.display = 'flex'; 
-            } catch (parseError) {
-                statusEl.innerHTML = "❌ त्रुटि: AI ले सही ढाँचामा प्रश्न दिएन। कृपया फेरि प्रयास गर्नुहोस्।";
-                statusEl.style.color = "red";
-            }
+}`;
         } else {
-            statusEl.innerHTML = `❌ त्रुटि: API ले काम गरेन। <br><span style="font-size:12px; color:#555;">${errorMessage}</span>`;
-            statusEl.style.color = "red";
+            formatInstructions = `
+कडा नियमहरू:
+१. यो सिधा प्रश्न (Direct Q&A) हो। विकल्पहरू (optionA, optionB...) नबनाउनुहोस्।
+२. सोझै सोधिने प्रश्न र त्यसको छोटो सटिक उत्तर 'correctAnswer' मा राख्नुहोस्।
+३. 'answerWithRef' मा "सन्दर्भ" शब्द नराखी सिधै "[पुस्तक अध्याय:पद] सही उत्तर वाक्य" लेख्नुहोस्।
+
+प्रत्येक JSON अब्जेक्टको ढाँचा:
+{
+  "category": "${category}",
+  "book": "${bookName}",
+  "chapterVerse": "${chapterVerse}",
+  "questionText": "प्रश्न...",
+  "correctAnswer": "सही उत्तर",
+  "answerWithRef": "${bookName} १:१०. \"सही उत्तर वाक्य।\"",
+  "difficulty": "Easy/Medium/Hard"
+}`;
         }
 
-        document.getElementById('generateBtn').disabled = false;
+        const systemPrompt = `तपाईं NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको पाठ पढेर ठ्याक्कै ${qCount} वटा प्रश्नहरू बनाउनुहोस्।
+स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard को सन्तुलित मिश्रण' : difficulty}
+
+आउटपुट अनिवार्य रूपमा विशुद्ध JSON Array हुनुपर्छ। JSON बाहेक अन्य कुनै व्याख्यात्मक पाठ नलेख्नुहोस्।
+
+${formatInstructions}
+
+बाइबल पाठ्यभाग:
+-----------------
+${bibleText}
+-----------------`;
+
+        const url = `https://api.groq.com/openai/v1/chat/completions`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelSelect,
+                    messages: [{ role: "user", content: systemPrompt }],
+                    temperature: 0.4
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API Error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            
+            if (data.choices && data.choices[0].message.content) {
+                let rawContent = data.choices[0].message.content.trim();
+                
+                // Clean markdown code blocks if present
+                if (rawContent.startsWith("```")) {
+                    rawContent = rawContent.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+                }
+
+                generatedQuestionsArray = JSON.parse(rawContent);
+
+                statusEl.innerText = `✅ सफलता! जम्मा ${generatedQuestionsArray.length} वटा प्रश्नहरू तयार भए।`;
+                statusEl.style.backgroundColor = "#e6ffe6";
+                statusEl.style.color = "green";
+                
+                downloadBtn.style.display = 'block';
+                copyBtn.style.display = 'block';
+
+                // Render Preview
+                renderPreview(generatedQuestionsArray, qType);
+                previewContainer.style.display = 'block';
+            } else {
+                throw new Error("API ले कुनै डेटा फर्काएन।");
+            }
+        } catch (error) {
+            statusEl.innerText = `❌ त्रुटि: ${error.message}. कृपया API Key र इन्टरनेट जाँच गर्नुहोस्।`;
+            statusEl.style.backgroundColor = "#ffe6e6";
+            statusEl.style.color = "red";
+            console.error(error);
+        } finally {
+            document.getElementById('generateBtn').disabled = false;
+        }
     }
 
-    // नयाँ सुविधा: टेक्स्ट कपि गर्ने
-    function copyToClipboard() {
-        if (!generatedData) return;
-        const data = JSON.parse(generatedData);
-        let textToCopy = `बाइबल Quiz प्रश्नहरु (${document.getElementById('chapterDetails').value.trim()})\n\n`;
-        
-        data.forEach((q, index) => {
-            let nepaliNum = toNepaliNum(index + 1);
-            let ref = q.verseReference ? q.verseReference : q.bookDetails;
-            textToCopy += `${nepaliNum}) ${q.questionText}\n`;
-            textToCopy += `A: ${q.optionA}\nB: ${q.optionB}\nC: ${q.optionC}\nD: ${q.optionD}\n`;
-            textToCopy += `सही उत्तर: ${q.correctAnswer} (सन्दर्भ: ${ref})\n\n`;
-        });
+    function renderPreview(questions, type) {
+        const previewList = document.getElementById('previewList');
+        previewList.innerHTML = "";
 
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            alert("✅ प्रश्नहरू सफलतापूर्वक क्लिपबोर्डमा कपि भयो! अब Word वा WhatsApp मा गएर Paste गर्नुहोस्।");
-        }).catch(err => {
-            alert("❌ कपि गर्न सकिएन।");
+        questions.forEach((q, idx) => {
+            const card = document.createElement('div');
+            card.className = 'q-card';
+            
+            let optionsHTML = "";
+            if (type === "MCQ") {
+                optionsHTML = `
+                    <div class="opt">A: ${q.optionA}</div>
+                    <div class="opt">B: ${q.optionB}</div>
+                    <div class="opt">C: ${q.optionC}</div>
+                    <div class="opt">D: ${q.optionD}</div>
+                    <div class="correct">सही उत्तर: Option ${q.correctOption} (${q.correctAnswer})</div>
+                `;
+            } else {
+                optionsHTML = `<div class="correct">सही उत्तर: ${q.correctAnswer}</div>`;
+            }
+
+            card.innerHTML = `
+                <div><strong>${idx + 1}) ${q.questionText}</strong> [${q.difficulty}]</div>
+                ${optionsHTML}
+                <div class="ref">📖 ${q.answerWithRef}</div>
+            `;
+
+            previewList.appendChild(card);
         });
     }
 
     function downloadJSON() {
-        if (!generatedData) return;
-        let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        const blob = new Blob([generatedData], { type: "application/json" });
+        if (!generatedQuestionsArray || generatedQuestionsArray.length === 0) return;
+        const bookName = document.getElementById('bookName').value.trim() || "Questions";
+        const qType = document.getElementById('qType').value;
+        const jsonString = JSON.stringify(generatedQuestionsArray, null, 2);
+        
+        const blob = new Blob([jsonString], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `nnrv_${safeName || 'questions'}.json`;
+        a.download = `NNRV_${bookName}_${qType}_Questions.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
     }
 
-    function downloadCSV() {
-        if (!generatedData) return;
-        const data = JSON.parse(generatedData);
-        const headers = Object.keys(data[0]);
-        let csvContent = headers.join(",") + "\n";
-        data.forEach(row => {
-            let values = headers.map(header => {
-                let val = row[header] ? row[header].toString() : "";
-                return `"${val.replace(/"/g, '""')}"`;
-            });
-            csvContent += values.join(",") + "\n";
+    function copyToClipboard() {
+        if (!generatedQuestionsArray || generatedQuestionsArray.length === 0) return;
+        const jsonString = JSON.stringify(generatedQuestionsArray, null, 2);
+        navigator.clipboard.writeText(jsonString).then(() => {
+            alert("JSON डेटा क्लिपबोर्डमा कपि भयो!");
         });
-        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        a.download = `nnrv_${safeName || 'questions'}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    }
-
-    function downloadWord() {
-        if (!generatedData) return;
-        const data = JSON.parse(generatedData);
-        const chapterDetails = document.getElementById('chapterDetails').value.trim();
-
-        let content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>`;
-        content += `<head><meta charset='utf-8'><title>Bible Quiz</title></head><body>`;
-        content += `<div style='text-align:center; font-size: 20px; font-weight: bold;'>बाइबल Quiz प्रश्नहरु</div>`;
-        content += `<div style='text-align:center; font-size: 16px; margin-bottom: 20px;'>पुस्तक : ${chapterDetails} बाट</div><hr>`;
-
-        data.forEach((q, index) => {
-            let nepaliNum = toNepaliNum(index + 1);
-            let referenceText = q.verseReference ? q.verseReference : q.bookDetails;
-            content += `<div style='margin-bottom: 15px;'>`;
-            content += `<div style='font-size: 16px; font-weight: bold; margin-bottom: 5px;'>${nepaliNum}) ${q.questionText}</div>`;
-            content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.5;'>`;
-            content += `A: ${q.optionA}<br>B: ${q.optionB}<br>C: ${q.optionC}<br>D: ${q.optionD}`;
-            content += `</div>`;
-            content += `<div style='font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;'>सही उत्तर: ${q.correctAnswer} <span style='font-size: 14px; font-weight: normal; color: #555;'>(सन्दर्भ: ${referenceText})</span></div>`;
-            content += `</div>`;
-        });
-        content += `</body></html>`;
-
-        const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        let safeName = chapterDetails.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        a.download = `nnrv_${safeName || 'questions'}.doc`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    }
-
-    function downloadPDF() {
-        if (!generatedData) return;
-        const data = JSON.parse(generatedData);
-        const chapterDetails = document.getElementById('chapterDetails').value.trim();
-        const printDiv = document.getElementById('printArea');
-
-        let content = `<div style="font-family: sans-serif; max-width: 800px; margin: auto;">`;
-        content += `<h2 style="text-align: center; margin-bottom: 5px;">बाइबल Quiz प्रश्नहरु</h2>`;
-        content += `<h3 style="text-align: center; margin-top: 0; color: #555;">पुस्तक : ${chapterDetails} बाट</h3><hr style="margin-bottom:20px;">`;
-
-        data.forEach((q, index) => {
-            let nepaliNum = toNepaliNum(index + 1);
-            let referenceText = q.verseReference ? q.verseReference : q.bookDetails;
-            content += `<div class="page-break-safe">`;
-            content += `<div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${nepaliNum}) ${q.questionText}</div>`;
-            content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
-            content += `A: ${q.optionA}<br>B: ${q.optionB}<br>C: ${q.optionC}<br>D: ${q.optionD}`;
-            content += `</div>`;
-            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;">सही उत्तर: ${q.correctAnswer} <span style="font-size: 14px; font-weight: normal; color: #555;">(सन्दर्भ: ${referenceText})</span></div>`;
-            content += `</div>`;
-        });
-        content += `</div>`;
-        printDiv.innerHTML = content;
-
-        setTimeout(() => { window.print(); }, 500); 
     }
 </script>
 
