@@ -51,7 +51,6 @@
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
     <div class="subtitle">Multi-AI (Groq + Gemini) & Full Export</div>
     
-    <!-- नयाँ AI मोडल छान्ने अप्सन -->
     <label>AI मोडल छान्नुहोस्:</label>
     <select id="apiProvider" onchange="updateApiPlaceholder()">
         <option value="groq">Groq (Llama 3.3) - छिटो र नि:शुल्क</option>
@@ -191,7 +190,6 @@
     let fullBookData = null; 
     let currentBookCode = "";
 
-    // AI Provider परिवर्तन हुँदा placeholder परिवर्तन गर्ने
     function updateApiPlaceholder() {
         const provider = document.getElementById('apiProvider').value;
         const apiKeyInput = document.getElementById('apiKey');
@@ -267,7 +265,6 @@
     }
 
     function processAndLimitData(data, start, end) {
-        // यदि Gemini छनोट गरिएको छ भने धेरै पाठ राख्न दिने (लामो कन्टेक्स्ट)
         const provider = document.getElementById('apiProvider').value;
         const SAFE_CHAR_LIMIT = (provider === 'groq') ? 15000 : 100000; 
         
@@ -332,7 +329,6 @@ ${bibleText}`;
 
         let apiUrl, requestBody, requestHeaders;
 
-        // १. API को Endpoint र Body सेटिङ
         if (provider === 'groq') {
             apiUrl = `https://api.groq.com/openai/v1/chat/completions`;
             requestHeaders = { 
@@ -350,8 +346,8 @@ ${bibleText}`;
                 max_tokens: 4000
             });
         } else {
-            // Gemini Settings (Flash or Pro)
-            const modelName = provider === 'gemini_flash' ? 'gemini-1.5-flash' : 'gemini-1.5-pro';
+            // यहाँ '-latest' थपिएको छ जसले गर्दा 'Not Found' एरर आउँदैन
+            const modelName = provider === 'gemini_flash' ? 'gemini-1.5-flash-latest' : 'gemini-1.5-pro-latest';
             apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             requestHeaders = { 'Content-Type': 'application/json' };
             requestBody = JSON.stringify({
@@ -378,7 +374,6 @@ ${bibleText}`;
             const data = await response.json();
             let jsonString = "";
             
-            // २. दुवै मोडलको आउटपुटलाई मिलाउने
             if (provider === 'groq') {
                 if (data.choices && data.choices[0].message.content) {
                     jsonString = data.choices[0].message.content;
@@ -391,7 +386,6 @@ ${bibleText}`;
 
             if (!jsonString) throw new Error("API ले सही उत्तर संरचना पठाएन।");
 
-            // Gemini ले कहिलेकाहीं Markdown (```json ... ```) पठाउँछ, त्यसलाई हटाउन
             jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
 
             const jsonObject = JSON.parse(jsonString);
@@ -526,3 +520,5 @@ ${bibleText}`;
 
 </body>
 </html>
+
+     
