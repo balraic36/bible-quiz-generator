@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NNRV Quiz Generator (Pro Auto-Failover)</title>
+    <title>चर्च बाइबल क्विज (Church Bible Quiz)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
         .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 550px; margin: auto; }
-        h2 { text-align: center; color: #f55036; margin-top: 0; }
-        .subtitle { text-align: center; color: #555; font-size: 13px; margin-bottom: 20px; }
+        h2 { text-align: center; color: #f55036; margin-top: 0; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #555; font-size: 14px; margin-bottom: 20px; font-weight: bold; }
         label { font-weight: 600; margin-top: 15px; display: block; font-size: 14px; color: #333; }
         input, select, textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
         input:focus, select:focus, textarea:focus { border-color: #f55036; outline: none; }
@@ -51,8 +51,8 @@
 <body>
 
 <div class="container">
-    <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Smart Quiz Engine with Exact Bible Phrases</div>
+    <h2>चर्च बाइबल क्विज ⚡</h2>
+    <div class="subtitle">AI Quiz Generator (Auto-Failover)</div>
     
     <div class="api-box">
         <label>१. Groq API Key (मुख्य र छिटो):</label>
@@ -199,7 +199,6 @@
     let fullBookData = null; 
     let currentBookCode = "";
 
-    // नम्बरलाई नेपालीमा रूपान्तरण गर्ने (जस्तै: 1:16 लाई १:१६ बनाउने)
     function toNepaliNum(str) {
         if (!str) return '';
         const nepDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
@@ -242,6 +241,23 @@
         return { extractedData: data, finalEndCh: end, message: "" };
     }
 
+    function processAndLimitData(data, start, end) {
+        const geminiKey = document.getElementById('geminiKey').value.trim();
+        const SAFE_CHAR_LIMIT = geminiKey ? 100000 : 15000; 
+        
+        let rawString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        
+        if (rawString.length > SAFE_CHAR_LIMIT) {
+            let safeString = rawString.substring(0, SAFE_CHAR_LIMIT);
+            let lastBrace = safeString.lastIndexOf('}');
+            if (lastBrace > SAFE_CHAR_LIMIT * 0.7) {
+                safeString = safeString.substring(0, lastBrace + 1) + "\n\n... (Token Limit को कारण अटोमेटिक मिलाइएको)";
+            }
+            return { text: safeString, actualEndCh: start, wasLimited: true };
+        }
+        return { text: data, actualEndCh: end, wasLimited: false };
+    }
+
     async function fetchFromGitHub() {
         const bookSelect = document.getElementById('bookSelect');
         const bookCode = bookSelect.value;
@@ -274,14 +290,15 @@
             }
 
             let processed = extractChaptersAndCheckLimit(fullBookData, startCh, endCh);
+            let safeData = processAndLimitData(processed.extractedData, startCh, processed.finalEndCh);
             
-            textArea.value = typeof processed.extractedData === 'string' ? processed.extractedData : JSON.stringify(processed.extractedData, null, 2);
+            textArea.value = typeof safeData.text === 'string' ? safeData.text : JSON.stringify(safeData.text, null, 2);
             
             let finalRange = startCh === processed.finalEndCh ? `${startCh}` : `${startCh}-${processed.finalEndCh}`;
             chapterDetails.value = `${bookName} ${finalRange}`;
 
-            if(processed.message) {
-                statusEl.innerHTML = processed.message + "<br>✅ पाठ तानियो! अब Generate थिच्नुहोस्।";
+            if(processed.message || safeData.wasLimited) {
+                statusEl.innerHTML = (processed.message || "⚠️ टोकन लिमिटको कारण डाटा घटाइएको छ।") + "<br>✅ पाठ तानियो! अब Generate थिच्नुहोस्।";
                 statusEl.style.color = "#d9534f"; 
             } else {
                 statusEl.innerHTML = `✅ अध्याय ${finalRange} सफलतापूर्वक तानियो! अब Generate थिच्नुहोस्।`;
@@ -362,17 +379,22 @@
         previewContainer.style.display = 'none';
         downloadGroup.style.display = 'none';
 
-        // 💡 यहाँ Prompt मा परिवर्तन गरिएको छ ताकि AI ले बाइबलको ठ्याक्कै वाक्य दियोस्
-        const prompt = `तपाईं एक NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
+        // 💡 यहाँ AI लाई ठ्याक्कै ३ प्रकारका प्रश्न मात्र बनाउन र छोटो उत्तर दिन निर्देशन दिइएको छ।
+        const prompt = `तपाईं एक "चर्च बाइबल क्विज (Church Bible Quiz)" विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
 प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
 सन्दर्भ: ${chapterDetails}
 
 अति महत्त्वपूर्ण नियमहरू:
-१. सही उत्तर सधैं 'A' मा मात्र नराख्नुहोस्। सही उत्तर A, B, C, वा D मध्ये कुनै पनि हुन सक्ने गरी Randomly छर्नुहोस्।
-२. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ र त्यसमा "questions" नामको Array हुनुपर्छ।
-३. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
+१. प्रश्नहरू विशेष गरी यी ३ प्रकारका हुनुपर्छ: 
+   - तथ्यमा आधारित (Fact checking - जस्तै: कति जति भयो?)
+   - खाली ठाउँ भर्ने (Fill in the blanks - जस्तै: तिम्रो कामको _________ दिऊन्)
+   - नाम र पहिचानमा आधारित (Name and Identity based)
+२. गलत विकल्पहरू (Distractors) सही उत्तर जत्तिकै लामा र एकदमै झुक्याउने हुनुपर्छ। कोही पनि सजिलै अनुमान गर्न नसक्ने खालको बनाउनुहोस्।
+३. सही उत्तर सधैं 'A' मा मात्र नराख्नुहोस्। सही उत्तर A, B, C, वा D मध्ये कुनै पनि हुन सक्ने गरी Randomly छर्नुहोस्।
+४. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ र त्यसमा "questions" नामको Array हुनुपर्छ।
+५. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
 {
-  "category": "Bible Quiz",
+  "category": "Church Bible Quiz",
   "bookDetails": "${chapterDetails}",
   "verseReference": "...", 
   "questionText": "...",
@@ -381,11 +403,9 @@
   "optionC": "...",
   "optionD": "...",
   "correctAnswer": "A/B/C/D",
-  "correctAnswerPhrase": "...",
-  "difficulty": "Easy/Medium/Hard"
+  "correctAnswerText": "..." // ⚠️ यहाँ सही उत्तरको ठ्याक्कै विकल्पको शब्द मात्र लेख्नुहोस् (जस्तै: 'एक एपा जति' वा 'पूरा प्रतिफल')
 }
-४. "verseReference" मा ठ्याक्कै कुन पुस्तक, अध्याय र पदबाट प्रश्न सोधिएको हो, त्यो लेख्नुहोस् (जस्तै: दानिएल २:४५)।
-५. ⚠️ "correctAnswerPhrase" मा सही उत्तरलाई पुष्टि गर्ने बाइबलको ठ्याक्कै त्यही वाक्य वा वाक्यांश (Exact text from the verse) जस्ताको तस्तै हुबहु निकाल्नुहोस्। जस्तै: "तपाईं जहाँ जानुहुन्छ म पनि त्यहीँ जानेछु।"
+६. "verseReference" मा कुन पुस्तक, अध्याय र पदबाट प्रश्न सोधिएको हो, त्यो लेख्नुहोस् (जस्तै: रूथ २:१७)।
 
 बाइबल पाठ:
 ${bibleText}`;
@@ -431,17 +451,19 @@ ${bibleText}`;
                 
                 generatedData = JSON.stringify(finalArray, null, 4); 
                 
-                // 💡 Preview मा नयाँ ढाँचा (सही उत्तर:- सन्दर्भ. बाइबलको वाक्य)
-                let textToDisplay = `बाइबल Quiz प्रश्नहरु (${chapterDetails})\n\n`;
+                // 💡 Preview मा नयाँ ढाँचा (सही उत्तर:- [विकल्पको शब्द] (सन्दर्भ))
+                let textToDisplay = `चर्च बाइबल क्विज (${chapterDetails})\n\n`;
                 finalArray.forEach((q, index) => {
                     let nepaliNum = toNepaliNum(index + 1);
                     let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
-                    let nepaliRef = toNepaliNum(rawRef); // जस्तै रूथ 1:16 लाई रूथ १:१६ बनाउँछ
-                    let exactPhrase = q.correctAnswerPhrase ? q.correctAnswerPhrase : q.correctAnswer;
+                    let nepaliRef = toNepaliNum(rawRef); 
                     
-                    textToDisplay += `${nepaliNum}) ${q.questionText}\n`;
+                    // यदि AI ले correctAnswerText पठाएन भने option बाट तान्ने
+                    let exactText = q.correctAnswerText || q[`option${q.correctAnswer}`];
+                    
+                    textToDisplay += `प्रश्न ${nepaliNum}: ${q.questionText}\n`;
                     textToDisplay += `   A. ${q.optionA}\n   B. ${q.optionB}\n   C. ${q.optionC}\n   D. ${q.optionD}\n`;
-                    textToDisplay += `✅ सही उत्तर:- ${nepaliRef}. ${exactPhrase}\n\n`;
+                    textToDisplay += `✅ सही उत्तर:- ${exactText} (सन्दर्भ: ${nepaliRef})\n\n`;
                 });
                 
                 document.getElementById('outputPreview').value = textToDisplay;
@@ -481,7 +503,7 @@ ${bibleText}`;
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `nnrv_${safeName || 'questions'}.json`;
+        a.download = `church_quiz_${safeName || 'questions'}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -504,7 +526,7 @@ ${bibleText}`;
         const a = document.createElement("a");
         a.href = url;
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        a.download = `nnrv_${safeName || 'questions'}.csv`;
+        a.download = `church_quiz_${safeName || 'questions'}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -516,23 +538,23 @@ ${bibleText}`;
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
 
         let content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>`;
-        content += `<head><meta charset='utf-8'><title>Bible Quiz</title></head><body>`;
-        content += `<div style='text-align:center; font-size: 20px; font-weight: bold;'>बाइबल Quiz प्रश्नहरु</div>`;
-        content += `<div style='text-align:center; font-size: 16px; margin-bottom: 20px;'>पुस्तक : ${chapterDetails} बाट</div><hr>`;
+        content += `<head><meta charset='utf-8'><title>चर्च बाइबल क्विज</title></head><body>`;
+        content += `<div style='text-align:center; font-size: 22px; font-weight: bold; color: #2b579a;'>चर्च बाइबल क्विज</div>`;
+        content += `<div style='text-align:center; font-size: 16px; margin-bottom: 20px; color: #555;'>पुस्तक : ${chapterDetails} बाट</div><hr>`;
 
         data.forEach((q, index) => {
             let nepaliNum = toNepaliNum(index + 1);
             let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
             let nepaliRef = toNepaliNum(rawRef);
-            let exactPhrase = q.correctAnswerPhrase ? q.correctAnswerPhrase : q.correctAnswer;
+            let exactText = q.correctAnswerText || q[`option${q.correctAnswer}`];
 
-            content += `<div style='margin-bottom: 15px;'>`;
-            content += `<div style='font-size: 16px; font-weight: bold; margin-bottom: 5px;'>${nepaliNum}) ${q.questionText}</div>`;
-            content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.5;'>`;
-            content += `A: ${q.optionA}<br>B: ${q.optionB}<br>C: ${q.optionC}<br>D: ${q.optionD}`;
+            content += `<div style='margin-bottom: 18px;'>`;
+            content += `<div style='font-size: 16px; font-weight: bold; margin-bottom: 5px;'>प्रश्न ${nepaliNum}: ${q.questionText}</div>`;
+            content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.6;'>`;
+            content += `A. ${q.optionA}<br>B. ${q.optionB}<br>C. ${q.optionC}<br>D. ${q.optionD}`;
             content += `</div>`;
-            // 💡 Word मा पनि नयाँ ढाँचा
-            content += `<div style='font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;'>सही उत्तर:- ${nepaliRef}. ${exactPhrase}</div>`;
+            // 💡 Word मा पनि नयाँ छोटो ढाँचा
+            content += `<div style='font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;'>✅ सही उत्तर:- ${exactText} <span style='font-size:14px; font-weight:normal; color:#666;'>(सन्दर्भ: ${nepaliRef})</span></div>`;
             content += `</div>`;
         });
         content += `</body></html>`;
@@ -542,7 +564,7 @@ ${bibleText}`;
         const a = document.createElement("a");
         a.href = url;
         let safeName = chapterDetails.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        a.download = `nnrv_${safeName || 'questions'}.doc`;
+        a.download = `church_quiz_${safeName || 'questions'}.doc`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -555,22 +577,22 @@ ${bibleText}`;
         const printDiv = document.getElementById('printArea');
 
         let content = `<div style="font-family: sans-serif; max-width: 800px; margin: auto;">`;
-        content += `<h2 style="text-align: center; margin-bottom: 5px;">बाइबल Quiz प्रश्नहरु</h2>`;
+        content += `<h2 style="text-align: center; margin-bottom: 5px; color: #d9534f;">चर्च बाइबल क्विज</h2>`;
         content += `<h3 style="text-align: center; margin-top: 0; color: #555;">पुस्तक : ${chapterDetails} बाट</h3><hr style="margin-bottom:20px;">`;
 
         data.forEach((q, index) => {
             let nepaliNum = toNepaliNum(index + 1);
             let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
             let nepaliRef = toNepaliNum(rawRef);
-            let exactPhrase = q.correctAnswerPhrase ? q.correctAnswerPhrase : q.correctAnswer;
+            let exactText = q.correctAnswerText || q[`option${q.correctAnswer}`];
 
-            content += `<div class="page-break-safe">`;
-            content += `<div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${nepaliNum}) ${q.questionText}</div>`;
+            content += `<div class="page-break-safe" style="margin-bottom: 20px;">`;
+            content += `<div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">प्रश्न ${nepaliNum}: ${q.questionText}</div>`;
             content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
-            content += `A: ${q.optionA}<br>B: ${q.optionB}<br>C: ${q.optionC}<br>D: ${q.optionD}`;
+            content += `A. ${q.optionA}<br>B. ${q.optionB}<br>C. ${q.optionC}<br>D. ${q.optionD}`;
             content += `</div>`;
-            // 💡 PDF मा पनि नयाँ ढाँचा
-            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;">सही उत्तर:- ${nepaliRef}. ${exactPhrase}</div>`;
+            // 💡 PDF मा पनि नयाँ छोटो ढाँचा
+            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;">✅ सही उत्तर:- ${exactText} <span style="font-size:14px; font-weight:normal; color:#666;">(सन्दर्भ: ${nepaliRef})</span></div>`;
             content += `</div>`;
         });
         content += `</div>`;
