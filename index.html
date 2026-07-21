@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>चर्च बाइबल क्विज (Church Bible Quiz)</title>
+    <title>नेपाली बाइबल क्विज (Nepali Bible Quiz)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
         .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 550px; margin: auto; }
@@ -51,7 +51,7 @@
 <body>
 
 <div class="container">
-    <h2>चर्च बाइबल क्विज ⚡</h2>
+    <h2>नेपाली बाइबल क्विज ⚡</h2>
     <div class="subtitle">AI Quiz Generator (Auto-Failover)</div>
     
     <div class="api-box">
@@ -69,12 +69,15 @@
             <input type="number" id="qCount" value="20" min="1" max="50">
         </div>
         <div>
-            <label>प्रश्नको स्तर:</label>
+            <!-- 💡 यहाँ तपाईंले भन्नुभएका नयाँ विकल्पहरू थपिएका छन् -->
+            <label>प्रश्नको प्रकार / स्तर:</label>
             <select id="difficulty">
                 <option value="Mixed">सबै मिसाएको</option>
                 <option value="Easy">सजिलो मात्र</option>
                 <option value="Medium">मध्यम मात्र</option>
                 <option value="Hard">गाह्रो मात्र</option>
+                <option value="FillInTheBlank">खाली ठाउँ भर्ने (Fill in blanks)</option>
+                <option value="FactBased">तथ्यमा आधारित (Fact Checking)</option>
             </select>
         </div>
     </div>
@@ -379,22 +382,27 @@
         previewContainer.style.display = 'none';
         downloadGroup.style.display = 'none';
 
-        // 💡 यहाँ AI लाई ठ्याक्कै ३ प्रकारका प्रश्न मात्र बनाउन र छोटो उत्तर दिन निर्देशन दिइएको छ।
-        const prompt = `तपाईं एक "चर्च बाइबल क्विज (Church Bible Quiz)" विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
-प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
+        // 💡 यहाँ प्रयोगकर्ताले छानेको प्रकार अनुसार AI लाई निर्देशन दिने
+        let dynamicInstruction = "";
+        if (difficulty === 'FillInTheBlank') {
+            dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "खाली ठाउँ भर्ने (Fill in the blanks)" शैलीका मात्र हुनुपर्छ। जस्तै: 'परमप्रभुले तिम्रो कामको _________ दिऊन्। खाली ठाउँमा के हुन्छ?'`;
+        } else if (difficulty === 'FactBased') {
+            dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "तथ्यमा आधारित (Fact checking)" शैलीका मात्र हुनुपर्छ (जस्तै: कति, को, कहाँ, कहिले)। जस्तै: 'रूथले दिनभरि खेतमा बटुलेको जौं दाँटेर झार्दा कति जति भयो?'`;
+        } else {
+            dynamicInstruction = `प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'} बनाउनुहोस्।`;
+        }
+
+        const prompt = `तपाईं एक "नेपाली बाइबल क्विज (Nepali Bible Quiz)" विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
 सन्दर्भ: ${chapterDetails}
 
 अति महत्त्वपूर्ण नियमहरू:
-१. प्रश्नहरू विशेष गरी यी ३ प्रकारका हुनुपर्छ: 
-   - तथ्यमा आधारित (Fact checking - जस्तै: कति जति भयो?)
-   - खाली ठाउँ भर्ने (Fill in the blanks - जस्तै: तिम्रो कामको _________ दिऊन्)
-   - नाम र पहिचानमा आधारित (Name and Identity based)
-२. गलत विकल्पहरू (Distractors) सही उत्तर जत्तिकै लामा र एकदमै झुक्याउने हुनुपर्छ। कोही पनि सजिलै अनुमान गर्न नसक्ने खालको बनाउनुहोस्।
+१. ${dynamicInstruction}
+२. गलत विकल्पहरू (Distractors) सही उत्तर जत्तिकै लामा र एकदमै झुक्याउने हुनुपर्छ।
 ३. सही उत्तर सधैं 'A' मा मात्र नराख्नुहोस्। सही उत्तर A, B, C, वा D मध्ये कुनै पनि हुन सक्ने गरी Randomly छर्नुहोस्।
 ४. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ र त्यसमा "questions" नामको Array हुनुपर्छ।
 ५. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
 {
-  "category": "Church Bible Quiz",
+  "category": "Nepali Bible Quiz",
   "bookDetails": "${chapterDetails}",
   "verseReference": "...", 
   "questionText": "...",
@@ -451,14 +459,11 @@ ${bibleText}`;
                 
                 generatedData = JSON.stringify(finalArray, null, 4); 
                 
-                // 💡 Preview मा नयाँ ढाँचा (सही उत्तर:- [विकल्पको शब्द] (सन्दर्भ))
-                let textToDisplay = `चर्च बाइबल क्विज (${chapterDetails})\n\n`;
+                let textToDisplay = `नेपाली बाइबल क्विज (${chapterDetails})\n\n`;
                 finalArray.forEach((q, index) => {
                     let nepaliNum = toNepaliNum(index + 1);
                     let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
                     let nepaliRef = toNepaliNum(rawRef); 
-                    
-                    // यदि AI ले correctAnswerText पठाएन भने option बाट तान्ने
                     let exactText = q.correctAnswerText || q[`option${q.correctAnswer}`];
                     
                     textToDisplay += `प्रश्न ${nepaliNum}: ${q.questionText}\n`;
@@ -503,7 +508,7 @@ ${bibleText}`;
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `church_quiz_${safeName || 'questions'}.json`;
+        a.download = `nepali_bible_quiz_${safeName || 'questions'}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -526,7 +531,7 @@ ${bibleText}`;
         const a = document.createElement("a");
         a.href = url;
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        a.download = `church_quiz_${safeName || 'questions'}.csv`;
+        a.download = `nepali_bible_quiz_${safeName || 'questions'}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -538,8 +543,8 @@ ${bibleText}`;
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
 
         let content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>`;
-        content += `<head><meta charset='utf-8'><title>चर्च बाइबल क्विज</title></head><body>`;
-        content += `<div style='text-align:center; font-size: 22px; font-weight: bold; color: #2b579a;'>चर्च बाइबल क्विज</div>`;
+        content += `<head><meta charset='utf-8'><title>नेपाली बाइबल क्विज</title></head><body>`;
+        content += `<div style='text-align:center; font-size: 22px; font-weight: bold; color: #2b579a;'>नेपाली बाइबल क्विज</div>`;
         content += `<div style='text-align:center; font-size: 16px; margin-bottom: 20px; color: #555;'>पुस्तक : ${chapterDetails} बाट</div><hr>`;
 
         data.forEach((q, index) => {
@@ -553,7 +558,6 @@ ${bibleText}`;
             content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.6;'>`;
             content += `A. ${q.optionA}<br>B. ${q.optionB}<br>C. ${q.optionC}<br>D. ${q.optionD}`;
             content += `</div>`;
-            // 💡 Word मा पनि नयाँ छोटो ढाँचा
             content += `<div style='font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;'>✅ सही उत्तर:- ${exactText} <span style='font-size:14px; font-weight:normal; color:#666;'>(सन्दर्भ: ${nepaliRef})</span></div>`;
             content += `</div>`;
         });
@@ -564,7 +568,7 @@ ${bibleText}`;
         const a = document.createElement("a");
         a.href = url;
         let safeName = chapterDetails.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        a.download = `church_quiz_${safeName || 'questions'}.doc`;
+        a.download = `nepali_bible_quiz_${safeName || 'questions'}.doc`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -577,7 +581,7 @@ ${bibleText}`;
         const printDiv = document.getElementById('printArea');
 
         let content = `<div style="font-family: sans-serif; max-width: 800px; margin: auto;">`;
-        content += `<h2 style="text-align: center; margin-bottom: 5px; color: #d9534f;">चर्च बाइबल क्विज</h2>`;
+        content += `<h2 style="text-align: center; margin-bottom: 5px; color: #d9534f;">नेपाली बाइबल क्विज</h2>`;
         content += `<h3 style="text-align: center; margin-top: 0; color: #555;">पुस्तक : ${chapterDetails} बाट</h3><hr style="margin-bottom:20px;">`;
 
         data.forEach((q, index) => {
@@ -591,7 +595,6 @@ ${bibleText}`;
             content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
             content += `A. ${q.optionA}<br>B. ${q.optionB}<br>C. ${q.optionC}<br>D. ${q.optionD}`;
             content += `</div>`;
-            // 💡 PDF मा पनि नयाँ छोटो ढाँचा
             content += `<div style="font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;">✅ सही उत्तर:- ${exactText} <span style="font-size:14px; font-weight:normal; color:#666;">(सन्दर्भ: ${nepaliRef})</span></div>`;
             content += `</div>`;
         });
