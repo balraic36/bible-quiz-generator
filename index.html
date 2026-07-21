@@ -165,7 +165,7 @@
     <label>बाइबलको पाठ (Text):</label>
     <textarea id="bibleText" rows="6" placeholder="अध्याय छानेर 'पाठ तान्नुहोस्' थिच्नुहोस्..."></textarea>
 
-    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: रूथ १-२):</label>
+    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: श्रेष्ठगीत १):</label>
     <input type="text" id="chapterDetails" placeholder="अटोमेटिक भरिनेछ...">
 
     <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू बनाउनुहोस् (Generate)</button>
@@ -209,7 +209,7 @@
         const textArea = document.getElementById('bibleText');
         const chapterDetails = document.getElementById('chapterDetails');
 
-        statusEl.innerText = `${bookName} तान्दै... ⏳`;
+        statusEl.innerHTML = `${bookName} तान्दै... ⏳`;
         statusEl.style.color = "#007bff";
 
         try {
@@ -230,22 +230,20 @@
             chapterDetails.value = `${bookName} ${finalRange}`;
 
             if(safeData.wasLimited) {
-                statusEl.innerText = `⚠️ टोकन लिमिट सुरक्षित गर्न अध्याय ${startCh} देखि ${safeData.actualEndCh} सम्म मात्र राखिएको छ।`;
+                statusEl.innerHTML = `⚠️ टोकन लिमिट सुरक्षित गर्न अध्याय ${startCh} देखि ${safeData.actualEndCh} सम्म मात्र राखिएको छ।`;
                 statusEl.style.color = "#d9534f"; 
             } else {
-                statusEl.innerText = `✅ अध्याय ${finalRange} सफलतापूर्वक तानियो! अब Generate थिच्नुहोस्।`;
+                statusEl.innerHTML = `✅ अध्याय ${finalRange} सफलतापूर्वक तानियो! अब Generate थिच्नुहोस्।`;
                 statusEl.style.color = "green";
             }
         } catch (error) {
-            statusEl.innerText = "❌ त्रुटि: पाठ तान्न सकिएन।";
+            statusEl.innerHTML = "❌ त्रुटि: पाठ तान्न सकिएन।";
             statusEl.style.color = "red";
         }
     }
 
-    // सुरक्षित अक्षर लिमिटर (Gemini को लागि ठूलो लिमिट)
     function processAndLimitData(data, start, end) {
         const geminiKey = document.getElementById('geminiKey').value.trim();
-        // यदि Gemini Key छ भने एकैपटक धेरै (१ लाख अक्षर) तान्न दिन्छ
         const SAFE_CHAR_LIMIT = geminiKey ? 100000 : 15000; 
         
         let rawString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
@@ -280,13 +278,13 @@
         });
         if (!response.ok) {
             const errData = await response.json();
-            throw new Error(errData.error?.message || "Groq सर्भरले काम गरेन।");
+            throw new Error("Groq Error: " + (errData.error?.message || "सर्भरले काम गरेन।"));
         }
         const data = await response.json();
         return data.choices[0].message.content;
     }
 
-    // २. GEMINI कल गर्ने फङ्सन
+    // २. GEMINI कल गर्ने फङ्सन (Strict JSON हटाइएको छ)
     async function callGemini(apiKey, prompt, modelVersion) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelVersion}:generateContent?key=${apiKey}`;
         const response = await fetch(url, {
@@ -294,18 +292,17 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: "application/json", temperature: 0.3 }
+                generationConfig: { temperature: 0.3 } 
             })
         });
         if (!response.ok) {
             const errData = await response.json();
-            throw new Error(errData.error?.message || "Gemini सर्भरले काम गरेन।");
+            throw new Error("Gemini Error: " + (errData.error?.message || "सर्भरले काम गरेन।"));
         }
         const data = await response.json();
         return data.candidates[0].content.parts[0].text;
     }
 
-    // मुख्य Generate फङ्सन (Auto-Fallback सहित)
     async function generateQuestions() {
         const groqKey = document.getElementById('groqKey').value.trim();
         const geminiKey = document.getElementById('geminiKey').value.trim();
@@ -317,13 +314,13 @@
         const downloadGroup = document.getElementById('downloadGroup');
 
         if (!groqKey && !geminiKey) {
-            statusEl.innerText = "❌ कृपया कम्तिमा एउटा API Key हाल्नुहोस् (Groq वा Gemini)!";
+            statusEl.innerHTML = "❌ कृपया कम्तिमा एउटा API Key हाल्नुहोस् (Groq वा Gemini)!";
             statusEl.style.color = "red";
             return;
         }
 
         if (!chapterDetails || !bibleText) {
-            statusEl.innerText = "❌ कृपया पाठ तान्नुहोस् र विवरण भर्नुहोस्!";
+            statusEl.innerHTML = "❌ कृपया पाठ तान्नुहोस् र विवरण भर्नुहोस्!";
             statusEl.style.color = "red";
             return;
         }
@@ -358,65 +355,66 @@ ${bibleText}`;
 
         let jsonString = null;
         let success = false;
+        let lastErrorMsg = "";
 
         // स्टेप १: Groq ट्राइ गर्ने
-        if (groqKey && !success) {
+        if (groqKey) {
             try {
                 statusEl.innerHTML = "१. <b>Groq</b> बाट प्रश्नहरू बन्दैछन्... ⏳";
                 statusEl.style.color = "#007bff";
                 jsonString = await callGroq(groqKey, prompt);
                 success = true;
             } catch (error) {
-                console.warn("Groq Failed:", error.message);
-                if (!geminiKey) {
-                    statusEl.innerText = "❌ Groq फेल भयो: " + error.message;
-                    statusEl.style.color = "red";
-                }
+                lastErrorMsg = error.message;
             }
         }
 
-        // स्टेप २: Groq फेल भएमा Gemini Flash ट्राइ गर्ने (Auto-Fallback)
+        // स्टेप २: Groq फेल भएमा Gemini Flash
         if (geminiKey && !success) {
             try {
-                if(groqKey) {
-                    statusEl.innerHTML = "⚠️ Groq लिमिट पुग्यो। अटोमेटिक रूपमा <b>Gemini Flash</b> ट्राइ गर्दैछ... ⏳";
-                    statusEl.style.color = "#d9534f";
+                if (groqKey) {
+                    statusEl.innerHTML = `⚠️ Groq फेल भयो। <b>Gemini Flash</b> ट्राइ गर्दैछ... ⏳`;
                 } else {
                     statusEl.innerHTML = "<b>Gemini Flash</b> बाट प्रश्नहरू बन्दैछन्... ⏳";
-                    statusEl.style.color = "#007bff";
                 }
+                statusEl.style.color = "#007bff";
                 jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-flash');
                 success = true;
             } catch (error) {
-                console.warn("Gemini Flash Failed:", error.message);
-                // स्टेप ३: Gemini Flash पनि फेल भएमा Gemini Pro ट्राइ गर्ने
+                lastErrorMsg = error.message;
+                // स्टेप ३: Flash फेल भएमा Gemini Pro
                 try {
-                    statusEl.innerHTML = "⚠️ Gemini Flash फेल भयो। अन्तिम विकल्प <b>Gemini Pro</b> ट्राइ गर्दैछ... ⏳";
+                    statusEl.innerHTML = "⚠️ Flash फेल भयो। अन्तिम विकल्प <b>Gemini Pro</b> ट्राइ गर्दैछ... ⏳";
                     jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-pro');
                     success = true;
                 } catch (errPro) {
-                    console.error("Gemini Pro Failed:", errPro.message);
-                    statusEl.innerText = "❌ सबै AI मोडलहरू फेल भए। कृपया नयाँ API Key हाल्नुहोस् वा एकछिन पछि ट्राइ गर्नुहोस्।";
-                    statusEl.style.color = "red";
+                    lastErrorMsg = errPro.message;
                 }
             }
         }
 
-        // यदि कुनै पनि AI ले सही उत्तर दियो भने
+        // यदि कुनै पनि AI ले काम गरेन भने वास्तविक Error देखाउने
+        if (!success) {
+             statusEl.innerHTML = `❌ त्रुटि: ${lastErrorMsg}<br><span style="font-size:12px; color:#555;">(माथिको म्यासेज पढेर Key चेक गर्नुहोस्)</span>`;
+             statusEl.style.color = "red";
+             document.getElementById('generateBtn').disabled = false;
+             return;
+        }
+
+        // सफलता पाएमा JSON मिलाएर देखाउने
         if (success && jsonString) {
             try {
-                // सुरक्षित JSON Parsing
                 jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
                 const jsonObject = JSON.parse(jsonString);
                 const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
                 
                 generatedData = JSON.stringify(finalArray, null, 4); 
                 
-                statusEl.innerText = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
+                statusEl.innerHTML = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
                 statusEl.style.color = "green";
                 downloadGroup.style.display = 'flex'; 
             } catch (parseError) {
-                statusEl.innerText = "❌ त्रुटि: AI ले सही ढाँचामा प्रश्न दिएन। फेरि ट्राइ गर्नुहोस्।";
+                statusEl.innerHTML = "❌ त्रुटि: AI ले सही ढाँचामा प्रश्न दिएन। फेरि ट्राइ गर्नुहोस्।";
                 statusEl.style.color = "red";
             }
         }
@@ -424,7 +422,7 @@ ${bibleText}`;
         document.getElementById('generateBtn').disabled = false;
     }
 
-    // डाउनलोड फङ्सनहरू (अघिकै जस्ताको तस्तै)
+    // डाउनलोड फङ्सनहरू (अघिकै)
     function downloadJSON() {
         if (!generatedData) return;
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
