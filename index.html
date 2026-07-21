@@ -21,7 +21,6 @@
         .btn-fetch { background-color: #2F5597; color: white; padding: 10px; font-size: 14px; height: 100%; }
         .btn-fetch:hover { background-color: #1e3a68; }
 
-        /* डाउनलोड बटनहरूको डिजाइन */
         .download-group { display: none; flex-direction: column; gap: 10px; margin-top: 20px; }
         .btn-json { background-color: #28a745; color: white; }
         .btn-csv { background-color: #107c41; color: white; }
@@ -37,14 +36,12 @@
         .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-top: 5px; }
         .flex-row > div { flex: 1; }
 
-        /* प्रिन्ट (PDF) को लागि सेटिङ - छरपस्ट नहुनको लागि */
         #printArea { display: none; }
-        
         @media print {
             body { background-color: white !important; margin: 0; padding: 0; }
             .container { display: none !important; }
             #printArea { display: block !important; padding: 20px; color: black; }
-            .page-break-safe { page-break-inside: avoid; break-inside: avoid; margin-bottom: 20px; } /* प्रश्नलाई काटिन दिँदैन */
+            .page-break-safe { page-break-inside: avoid; break-inside: avoid; margin-bottom: 20px; }
         }
     </style>
 </head>
@@ -52,9 +49,17 @@
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">JSON, Excel, Word & PDF Export (सन्दर्भ सहित)</div>
+    <div class="subtitle">Multi-AI (Groq + Gemini) & Full Export</div>
     
-    <label>Groq API Key:</label>
+    <!-- नयाँ AI मोडल छान्ने अप्सन -->
+    <label>AI मोडल छान्नुहोस्:</label>
+    <select id="apiProvider" onchange="updateApiPlaceholder()">
+        <option value="groq">Groq (Llama 3.3) - छिटो र नि:शुल्क</option>
+        <option value="gemini_flash">Gemini 1.5 Flash - नि:शुल्क (१० लाख टोकन)</option>
+        <option value="gemini_pro">Gemini 1.5 Pro - सशुल्क (२० लाख टोकन)</option>
+    </select>
+
+    <label id="apiKeyLabel">Groq API Key:</label>
     <input type="password" id="apiKey" placeholder="gsk_...">
 
     <div class="flex-row">
@@ -171,7 +176,6 @@
     
     <div id="status"></div>
 
-    <!-- चारवटै डाउनलोड अप्सनहरू -->
     <div class="download-group" id="downloadGroup">
         <button class="btn-json" onclick="downloadJSON()">JSON डाउनलोड गर्नुहोस् ⬇️</button>
         <button class="btn-csv" onclick="downloadCSV()">Excel (CSV) डाउनलोड गर्नुहोस् 📊</button>
@@ -180,7 +184,6 @@
     </div>
 </div>
 
-<!-- PDF प्रिन्टको लागि लुकेको भाग -->
 <div id="printArea"></div>
 
 <script>
@@ -188,7 +191,21 @@
     let fullBookData = null; 
     let currentBookCode = "";
 
-    // नम्बरलाई नेपालीमा बदल्ने फङ्सन
+    // AI Provider परिवर्तन हुँदा placeholder परिवर्तन गर्ने
+    function updateApiPlaceholder() {
+        const provider = document.getElementById('apiProvider').value;
+        const apiKeyInput = document.getElementById('apiKey');
+        const apiKeyLabel = document.getElementById('apiKeyLabel');
+        
+        if (provider === 'groq') {
+            apiKeyLabel.innerText = "Groq API Key:";
+            apiKeyInput.placeholder = "gsk_...";
+        } else {
+            apiKeyLabel.innerText = "Gemini API Key:";
+            apiKeyInput.placeholder = "AIza...";
+        }
+    }
+
     function toNepaliNum(num) {
         return num.toString().replace(/\d/g, d => '०१२३४५६७८९'[d]);
     }
@@ -250,7 +267,10 @@
     }
 
     function processAndLimitData(data, start, end) {
-        const SAFE_CHAR_LIMIT = 15000; 
+        // यदि Gemini छनोट गरिएको छ भने धेरै पाठ राख्न दिने (लामो कन्टेक्स्ट)
+        const provider = document.getElementById('apiProvider').value;
+        const SAFE_CHAR_LIMIT = (provider === 'groq') ? 15000 : 100000; 
+        
         let rawString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
         
         if (rawString.length > SAFE_CHAR_LIMIT) {
@@ -265,6 +285,7 @@
     }
 
     async function generateQuestions() {
+        const provider = document.getElementById('apiProvider').value;
         const apiKey = document.getElementById('apiKey').value.trim();
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
         const qCount = document.getElementById('qCount').value;
@@ -309,46 +330,79 @@
 बाइबल पाठ:
 ${bibleText}`;
 
-        const url = `https://api.groq.com/openai/v1/chat/completions`;
+        let apiUrl, requestBody, requestHeaders;
+
+        // १. API को Endpoint र Body सेटिङ
+        if (provider === 'groq') {
+            apiUrl = `https://api.groq.com/openai/v1/chat/completions`;
+            requestHeaders = { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            };
+            requestBody = JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.3,
+                max_tokens: 4000
+            });
+        } else {
+            // Gemini Settings (Flash or Pro)
+            const modelName = provider === 'gemini_flash' ? 'gemini-1.5-flash' : 'gemini-1.5-pro';
+            apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+            requestHeaders = { 'Content-Type': 'application/json' };
+            requestBody = JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { 
+                    response_mime_type: "application/json",
+                    temperature: 0.3 
+                }
+            });
+        }
         
         try {
-            const response = await fetch(url, {
+            const response = await fetch(apiUrl, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: [
-                        { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
-                        { role: "user", content: prompt }
-                    ],
-                    response_format: { type: "json_object" },
-                    temperature: 0.3,
-                    max_tokens: 4000
-                })
+                headers: requestHeaders,
+                body: requestBody
             });
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.error?.message || "सर्भरमा समस्या आयो।");
+                throw new Error(errData.error?.message || "सर्भरमा समस्या आयो। API Key वा लिमिट चेक गर्नुहोस्।");
             }
 
             const data = await response.json();
+            let jsonString = "";
             
-            if (data.choices && data.choices[0].message.content) {
-                const jsonObject = JSON.parse(data.choices[0].message.content);
-                const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
-                
-                generatedData = JSON.stringify(finalArray, null, 4); 
-                
-                statusEl.innerText = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
-                statusEl.style.color = "green";
-                downloadGroup.style.display = 'flex'; 
+            // २. दुवै मोडलको आउटपुटलाई मिलाउने
+            if (provider === 'groq') {
+                if (data.choices && data.choices[0].message.content) {
+                    jsonString = data.choices[0].message.content;
+                }
             } else {
-                throw new Error("API ले सही उत्तर संरचना पठाएन।");
+                if (data.candidates && data.candidates[0].content.parts[0].text) {
+                    jsonString = data.candidates[0].content.parts[0].text;
+                }
             }
+
+            if (!jsonString) throw new Error("API ले सही उत्तर संरचना पठाएन।");
+
+            // Gemini ले कहिलेकाहीं Markdown (```json ... ```) पठाउँछ, त्यसलाई हटाउन
+            jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            const jsonObject = JSON.parse(jsonString);
+            const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
+            
+            generatedData = JSON.stringify(finalArray, null, 4); 
+            
+            statusEl.innerText = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
+            statusEl.style.color = "green";
+            downloadGroup.style.display = 'flex'; 
+
         } catch (error) {
             statusEl.innerText = "❌ त्रुटि: " + error.message;
             statusEl.style.color = "red";
@@ -358,14 +412,9 @@ ${bibleText}`;
         }
     }
 
-    // १. JSON डाउनलोड
     function downloadJSON() {
-        if (!generatedData) {
-            alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!");
-            return;
-        }
+        if (!generatedData) { alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!"); return; }
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        
         const blob = new Blob([generatedData], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -376,12 +425,8 @@ ${bibleText}`;
         document.body.removeChild(a);
     }
 
-    // २. Excel (CSV) डाउनलोड
     function downloadCSV() {
-        if (!generatedData) {
-            alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!");
-            return;
-        }
+        if (!generatedData) { alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!"); return; }
         const data = JSON.parse(generatedData);
         if (!data || !data.length) return;
 
@@ -407,12 +452,8 @@ ${bibleText}`;
         document.body.removeChild(a);
     }
 
-    // ३. Word (DOC) डाउनलोड
     function downloadWord() {
-        if (!generatedData) {
-            alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!");
-            return;
-        }
+        if (!generatedData) { alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!"); return; }
         const data = JSON.parse(generatedData);
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
 
@@ -450,12 +491,8 @@ ${bibleText}`;
         document.body.removeChild(a);
     }
 
-    // ४. PDF सेभ / प्रिन्ट
     function downloadPDF() {
-        if (!generatedData) {
-            alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!");
-            return;
-        }
+        if (!generatedData) { alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!"); return; }
         const data = JSON.parse(generatedData);
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
         const printDiv = document.getElementById('printArea');
@@ -483,10 +520,7 @@ ${bibleText}`;
         content += `</div>`;
         printDiv.innerHTML = content;
 
-        // मोबाइलमा प्रिन्ट कमाण्डले काम गर्न थोरै समय (Delay) चाहिन्छ
-        setTimeout(() => {
-            window.print();
-        }, 500); 
+        setTimeout(() => { window.print(); }, 500); 
     }
 </script>
 
