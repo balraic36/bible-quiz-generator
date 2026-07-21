@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NNRV Quiz Generator (Pro Version)</title>
+    <title>NNRV Quiz Generator (Auto-Fallback)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
         .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
@@ -27,15 +27,12 @@
         .btn-word { background-color: #2b579a; color: white; }
         .btn-pdf { background-color: #d9534f; color: white; }
         
-        .btn-json:hover { background-color: #218838; }
-        .btn-csv:hover { background-color: #0b5e31; }
-        .btn-word:hover { background-color: #1e3f73; }
-        .btn-pdf:hover { background-color: #c9302c; }
-
-        #status { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center; line-height: 1.4; }
+        #status { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center; line-height: 1.5; }
         .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-top: 5px; }
         .flex-row > div { flex: 1; }
-        .key-hint { font-size: 11px; color: #d9534f; margin-top: 5px; font-weight: bold; }
+        
+        .api-box { background-color: #fdfdfd; border: 1px solid #e0e0e0; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .hint-text { font-size: 11px; color: #666; margin-top: 5px; }
 
         #printArea { display: none; }
         @media print {
@@ -50,18 +47,16 @@
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Multi-AI (Groq + Gemini) & Full Export</div>
+    <div class="subtitle">Auto-Failover System (एउटा फेल हुँदा अर्को चल्ने)</div>
     
-    <label>AI मोडल छान्नुहोस्:</label>
-    <select id="apiProvider" onchange="updateApiPlaceholder()">
-        <option value="groq">Groq (Llama 3.3) - छिटो र नि:शुल्क</option>
-        <option value="gemini_flash">Gemini 1.5 Flash - नि:शुल्क (१० लाख टोकन)</option>
-        <option value="gemini_pro">Gemini 1.5 Pro - सशुल्क (२० लाख टोकन)</option>
-    </select>
-
-    <label id="apiKeyLabel">Groq API Key:</label>
-    <input type="password" id="apiKey" placeholder="gsk_...">
-    <div class="key-hint" id="keyHint">⚠️ Groq को लागि 'gsk_' बाट सुरु हुने Key हाल्नुहोस्।</div>
+    <div class="api-box">
+        <label>१. Groq API Key (gsk_...):</label>
+        <input type="password" id="groqKey" placeholder="gsk_...">
+        
+        <label>२. Gemini API Key (AIza...):</label>
+        <input type="password" id="geminiKey" placeholder="AIza...">
+        <div class="hint-text">💡 दुवै Key राख्नुभयो भने, एउटा फेल हुँदा एपले आफैं अर्को प्रयोग गर्छ!</div>
+    </div>
 
     <div class="flex-row">
         <div>
@@ -192,25 +187,6 @@
     let fullBookData = null; 
     let currentBookCode = "";
 
-    function updateApiPlaceholder() {
-        const provider = document.getElementById('apiProvider').value;
-        const apiKeyInput = document.getElementById('apiKey');
-        const apiKeyLabel = document.getElementById('apiKeyLabel');
-        const keyHint = document.getElementById('keyHint');
-        
-        if (provider === 'groq') {
-            apiKeyLabel.innerText = "Groq API Key:";
-            apiKeyInput.placeholder = "gsk_...";
-            keyHint.innerText = "⚠️ Groq को लागि 'gsk_' बाट सुरु हुने Key हाल्नुहोस्।";
-            keyHint.style.color = "#d9534f";
-        } else {
-            apiKeyLabel.innerText = "Gemini API Key:";
-            apiKeyInput.placeholder = "AIza...";
-            keyHint.innerText = "💡 Gemini को लागि 'AIza' बाट सुरु हुने Key हाल्नुहोस्।";
-            keyHint.style.color = "#28a745";
-        }
-    }
-
     function toNepaliNum(num) {
         return num.toString().replace(/\d/g, d => '०१२३४५६७८९'[d]);
     }
@@ -241,11 +217,8 @@
                 const response = await fetch(url);
                 if (!response.ok) throw new Error("डेटा भेटिएन।");
                 const rawText = await response.text();
-                try {
-                    fullBookData = JSON.parse(rawText);
-                } catch(e) {
-                    fullBookData = rawText;
-                }
+                try { fullBookData = JSON.parse(rawText); } 
+                catch(e) { fullBookData = rawText; }
                 currentBookCode = bookCode;
             }
 
@@ -263,17 +236,17 @@
                 statusEl.innerText = `✅ अध्याय ${finalRange} सफलतापूर्वक तानियो! अब Generate थिच्नुहोस्।`;
                 statusEl.style.color = "green";
             }
-
         } catch (error) {
             statusEl.innerText = "❌ त्रुटि: पाठ तान्न सकिएन।";
             statusEl.style.color = "red";
-            console.error(error);
         }
     }
 
+    // सुरक्षित अक्षर लिमिटर (Gemini को लागि ठूलो लिमिट)
     function processAndLimitData(data, start, end) {
-        const provider = document.getElementById('apiProvider').value;
-        const SAFE_CHAR_LIMIT = (provider === 'groq') ? 15000 : 100000; 
+        const geminiKey = document.getElementById('geminiKey').value.trim();
+        // यदि Gemini Key छ भने एकैपटक धेरै (१ लाख अक्षर) तान्न दिन्छ
+        const SAFE_CHAR_LIMIT = geminiKey ? 100000 : 15000; 
         
         let rawString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
         
@@ -288,9 +261,54 @@
         return { text: data, actualEndCh: end, wasLimited: false };
     }
 
+    // १. GROQ कल गर्ने फङ्सन
+    async function callGroq(apiKey, prompt) {
+        const url = `https://api.groq.com/openai/v1/chat/completions`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.3,
+                max_tokens: 4000
+            })
+        });
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error?.message || "Groq सर्भरले काम गरेन।");
+        }
+        const data = await response.json();
+        return data.choices[0].message.content;
+    }
+
+    // २. GEMINI कल गर्ने फङ्सन
+    async function callGemini(apiKey, prompt, modelVersion) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelVersion}:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: "application/json", temperature: 0.3 }
+            })
+        });
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error?.message || "Gemini सर्भरले काम गरेन।");
+        }
+        const data = await response.json();
+        return data.candidates[0].content.parts[0].text;
+    }
+
+    // मुख्य Generate फङ्सन (Auto-Fallback सहित)
     async function generateQuestions() {
-        const provider = document.getElementById('apiProvider').value;
-        const apiKey = document.getElementById('apiKey').value.trim();
+        const groqKey = document.getElementById('groqKey').value.trim();
+        const geminiKey = document.getElementById('geminiKey').value.trim();
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
         const qCount = document.getElementById('qCount').value;
         const difficulty = document.getElementById('difficulty').value;
@@ -298,14 +316,18 @@
         const statusEl = document.getElementById('status');
         const downloadGroup = document.getElementById('downloadGroup');
 
-        if (!apiKey || !chapterDetails || !bibleText) {
-            statusEl.innerText = "कृपया API Key र बाँकी विवरणहरू भर्नुहोस्!";
+        if (!groqKey && !geminiKey) {
+            statusEl.innerText = "❌ कृपया कम्तिमा एउटा API Key हाल्नुहोस् (Groq वा Gemini)!";
             statusEl.style.color = "red";
             return;
         }
 
-        statusEl.innerText = "प्रश्नहरू बन्दैछन्... कृपया पर्खनुहोस् ⏳";
-        statusEl.style.color = "#007bff";
+        if (!chapterDetails || !bibleText) {
+            statusEl.innerText = "❌ कृपया पाठ तान्नुहोस् र विवरण भर्नुहोस्!";
+            statusEl.style.color = "red";
+            return;
+        }
+
         document.getElementById('generateBtn').disabled = true;
         downloadGroup.style.display = 'none';
 
@@ -334,88 +356,77 @@
 बाइबल पाठ:
 ${bibleText}`;
 
-        let apiUrl, requestBody, requestHeaders;
+        let jsonString = null;
+        let success = false;
 
-        if (provider === 'groq') {
-            apiUrl = `https://api.groq.com/openai/v1/chat/completions`;
-            requestHeaders = { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            };
-            requestBody = JSON.stringify({
-                model: "llama-3.3-70b-versatile",
-                messages: [
-                    { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
-                    { role: "user", content: prompt }
-                ],
-                response_format: { type: "json_object" },
-                temperature: 0.3,
-                max_tokens: 4000
-            });
-        } else {
-            const modelName = provider === 'gemini_flash' ? 'gemini-1.5-flash' : 'gemini-1.5-pro';
-            apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-            requestHeaders = { 'Content-Type': 'application/json' };
-            requestBody = JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { 
-                    responseMimeType: "application/json", /* 👈 यो लाइन सच्याइएको छ (response_mime_type हटाइयो) */
-                    temperature: 0.3 
-                }
-            });
-        }
-        
-        try {
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: requestHeaders,
-                body: requestBody
-            });
-
-            if (!response.ok) {
-                const errData = await response.json();
-                // अब यसले गुगलले पठाएको वास्तविक त्रुटि नै देखाउनेछ
-                throw new Error(errData.error?.message || "सर्भरमा समस्या आयो। API Key चेक गर्नुहोस्।");
-            }
-
-            const data = await response.json();
-            let jsonString = "";
-            
-            if (provider === 'groq') {
-                if (data.choices && data.choices[0].message.content) {
-                    jsonString = data.choices[0].message.content;
-                }
-            } else {
-                if (data.candidates && data.candidates[0].content.parts[0].text) {
-                    jsonString = data.candidates[0].content.parts[0].text;
+        // स्टेप १: Groq ट्राइ गर्ने
+        if (groqKey && !success) {
+            try {
+                statusEl.innerHTML = "१. <b>Groq</b> बाट प्रश्नहरू बन्दैछन्... ⏳";
+                statusEl.style.color = "#007bff";
+                jsonString = await callGroq(groqKey, prompt);
+                success = true;
+            } catch (error) {
+                console.warn("Groq Failed:", error.message);
+                if (!geminiKey) {
+                    statusEl.innerText = "❌ Groq फेल भयो: " + error.message;
+                    statusEl.style.color = "red";
                 }
             }
-
-            if (!jsonString) throw new Error("API ले सही उत्तर संरचना पठाएन।");
-
-            jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
-
-            const jsonObject = JSON.parse(jsonString);
-            const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
-            
-            generatedData = JSON.stringify(finalArray, null, 4); 
-            
-            statusEl.innerText = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
-            statusEl.style.color = "green";
-            downloadGroup.style.display = 'flex'; 
-
-        } catch (error) {
-            // वास्तविक त्रुटि म्यासेज यहाँ देखिनेछ
-            statusEl.innerText = "❌ त्रुटि: " + error.message;
-            statusEl.style.color = "red";
-            console.error(error);
-        } finally {
-            document.getElementById('generateBtn').disabled = false;
         }
+
+        // स्टेप २: Groq फेल भएमा Gemini Flash ट्राइ गर्ने (Auto-Fallback)
+        if (geminiKey && !success) {
+            try {
+                if(groqKey) {
+                    statusEl.innerHTML = "⚠️ Groq लिमिट पुग्यो। अटोमेटिक रूपमा <b>Gemini Flash</b> ट्राइ गर्दैछ... ⏳";
+                    statusEl.style.color = "#d9534f";
+                } else {
+                    statusEl.innerHTML = "<b>Gemini Flash</b> बाट प्रश्नहरू बन्दैछन्... ⏳";
+                    statusEl.style.color = "#007bff";
+                }
+                jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-flash');
+                success = true;
+            } catch (error) {
+                console.warn("Gemini Flash Failed:", error.message);
+                // स्टेप ३: Gemini Flash पनि फेल भएमा Gemini Pro ट्राइ गर्ने
+                try {
+                    statusEl.innerHTML = "⚠️ Gemini Flash फेल भयो। अन्तिम विकल्प <b>Gemini Pro</b> ट्राइ गर्दैछ... ⏳";
+                    jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-pro');
+                    success = true;
+                } catch (errPro) {
+                    console.error("Gemini Pro Failed:", errPro.message);
+                    statusEl.innerText = "❌ सबै AI मोडलहरू फेल भए। कृपया नयाँ API Key हाल्नुहोस् वा एकछिन पछि ट्राइ गर्नुहोस्।";
+                    statusEl.style.color = "red";
+                }
+            }
+        }
+
+        // यदि कुनै पनि AI ले सही उत्तर दियो भने
+        if (success && jsonString) {
+            try {
+                // सुरक्षित JSON Parsing
+                jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+                const jsonObject = JSON.parse(jsonString);
+                const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
+                
+                generatedData = JSON.stringify(finalArray, null, 4); 
+                
+                statusEl.innerText = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
+                statusEl.style.color = "green";
+                downloadGroup.style.display = 'flex'; 
+            } catch (parseError) {
+                statusEl.innerText = "❌ त्रुटि: AI ले सही ढाँचामा प्रश्न दिएन। फेरि ट्राइ गर्नुहोस्।";
+                statusEl.style.color = "red";
+            }
+        }
+
+        document.getElementById('generateBtn').disabled = false;
     }
 
+    // डाउनलोड फङ्सनहरू (अघिकै जस्ताको तस्तै)
     function downloadJSON() {
-        if (!generatedData) { alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!"); return; }
+        if (!generatedData) return;
         let safeName = document.getElementById('chapterDetails').value.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
         const blob = new Blob([generatedData], { type: "application/json" });
         const url = URL.createObjectURL(blob);
@@ -428,13 +439,10 @@ ${bibleText}`;
     }
 
     function downloadCSV() {
-        if (!generatedData) { alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!"); return; }
+        if (!generatedData) return;
         const data = JSON.parse(generatedData);
-        if (!data || !data.length) return;
-
         const headers = Object.keys(data[0]);
         let csvContent = headers.join(",") + "\n";
-
         data.forEach(row => {
             let values = headers.map(header => {
                 let val = row[header] ? row[header].toString() : "";
@@ -442,7 +450,6 @@ ${bibleText}`;
             });
             csvContent += values.join(",") + "\n";
         });
-
         const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -455,7 +462,7 @@ ${bibleText}`;
     }
 
     function downloadWord() {
-        if (!generatedData) { alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!"); return; }
+        if (!generatedData) return;
         const data = JSON.parse(generatedData);
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
 
@@ -467,19 +474,14 @@ ${bibleText}`;
         data.forEach((q, index) => {
             let nepaliNum = toNepaliNum(index + 1);
             let referenceText = q.verseReference ? q.verseReference : q.bookDetails;
-            
             content += `<div style='margin-bottom: 15px;'>`;
             content += `<div style='font-size: 16px; font-weight: bold; margin-bottom: 5px;'>${nepaliNum}) ${q.questionText}</div>`;
             content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.5;'>`;
-            content += `A: ${q.optionA}<br>`;
-            content += `B: ${q.optionB}<br>`;
-            content += `C: ${q.optionC}<br>`;
-            content += `D: ${q.optionD}`;
+            content += `A: ${q.optionA}<br>B: ${q.optionB}<br>C: ${q.optionC}<br>D: ${q.optionD}`;
             content += `</div>`;
             content += `<div style='font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;'>सही उत्तर: ${q.correctAnswer} <span style='font-size: 14px; font-weight: normal; color: #555;'>(सन्दर्भ: ${referenceText})</span></div>`;
             content += `</div>`;
         });
-
         content += `</body></html>`;
 
         const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
@@ -494,7 +496,7 @@ ${bibleText}`;
     }
 
     function downloadPDF() {
-        if (!generatedData) { alert("कृपया पहिला प्रश्नहरू Generate गर्नुहोस्!"); return; }
+        if (!generatedData) return;
         const data = JSON.parse(generatedData);
         const chapterDetails = document.getElementById('chapterDetails').value.trim();
         const printDiv = document.getElementById('printArea');
@@ -506,19 +508,14 @@ ${bibleText}`;
         data.forEach((q, index) => {
             let nepaliNum = toNepaliNum(index + 1);
             let referenceText = q.verseReference ? q.verseReference : q.bookDetails;
-            
             content += `<div class="page-break-safe">`;
             content += `<div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${nepaliNum}) ${q.questionText}</div>`;
             content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
-            content += `A: ${q.optionA}<br>`;
-            content += `B: ${q.optionB}<br>`;
-            content += `C: ${q.optionC}<br>`;
-            content += `D: ${q.optionD}`;
+            content += `A: ${q.optionA}<br>B: ${q.optionB}<br>C: ${q.optionC}<br>D: ${q.optionD}`;
             content += `</div>`;
             content += `<div style="font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;">सही उत्तर: ${q.correctAnswer} <span style="font-size: 14px; font-weight: normal; color: #555;">(सन्दर्भ: ${referenceText})</span></div>`;
             content += `</div>`;
         });
-        
         content += `</div>`;
         printDiv.innerHTML = content;
 
