@@ -22,7 +22,7 @@
         .btn-fetch:hover { background-color: #1e3a68; }
 
         .preview-container { display: none; margin-top: 20px; border-top: 2px dashed #ccc; padding-top: 15px; }
-        .preview-box { width: 100%; background: #fdfdfd; font-family: monospace; font-size: 14px; border: 1px solid #bbb; padding: 10px; border-radius: 6px; resize: vertical; min-height: 250px; }
+        .preview-box { width: 100%; background: #fdfdfd; font-family: monospace; font-size: 14px; border: 1px solid #bbb; padding: 10px; border-radius: 6px; resize: vertical; min-height: 300px; }
         .btn-copy { background-color: #17a2b8; color: white; margin-top: 10px; padding: 12px; }
         .btn-copy:hover { background-color: #138496; }
 
@@ -52,7 +52,7 @@
 
 <div class="container">
     <h2>नेपाली बाइबल क्विज ⚡</h2>
-    <div class="subtitle">AI Quiz Generator (Smart Verse Splitter)</div>
+    <div class="subtitle">AI Quiz Generator (Smart Options & Verse Splitter)</div>
     
     <div class="api-box">
         <label>१. Groq API Key (मुख्य र छिटो):</label>
@@ -177,7 +177,6 @@
         </div>
     </div>
     
-    <!-- 💡 नयाँ पद (Verse) छान्ने बक्सहरू -->
     <div class="flex-row">
         <div>
             <label>सुरु पद (छैन भने खाली):</label>
@@ -195,7 +194,7 @@
     <label>बाइबलको पाठ (Text):</label>
     <textarea id="bibleText" rows="6" placeholder="अध्याय र पद छानेर 'पाठ तान्नुहोस्' थिच्नुहोस्..."></textarea>
 
-    <label>प्रश्नमा कुन अध्याय/पद देखिने? (जस्तै: दानिएल ७:१-१५):</label>
+    <label>प्रश्नमा कुन अध्याय/पद देखिने? (जस्तै: १ राजा १:१-१५):</label>
     <input type="text" id="chapterDetails" placeholder="अटोमेटिक भरिनेछ...">
 
     <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू बनाउनुहोस् (Generate)</button>
@@ -230,7 +229,6 @@
         return str.toString().replace(/\d/g, d => nepDigits[d]);
     }
 
-    // 💡 स्मार्ट पद-विभाजक: JSON लाई टेक्स्टमा बदलेर टोकन बचाउने र लामो अध्यायमा लिमिट लगाउने
     function formatBibleText(data, startC, endC, startV, endV) {
         let chaptersArray = data.chapters || data;
         if (!Array.isArray(chaptersArray)) return { text: JSON.stringify(data), limited: false, finalC: endC, finalV: endV };
@@ -239,7 +237,6 @@
         let limited = false;
         let finalC = startC;
         let finalV = startV || 1;
-        // AI मोडलहरूको सुरक्षित लिमिट (Plain Text भएकोले धेरै अटाउँछ)
         const LIMIT = document.getElementById('geminiKey').value ? 50000 : 25000; 
         
         let validChapters = chaptersArray.filter(ch => {
@@ -280,7 +277,9 @@
     async function fetchFromGitHub() {
         const bookSelect = document.getElementById('bookSelect');
         const bookCode = bookSelect.value;
-        const bookName = bookSelect.options[bookSelect.selectedIndex].text.split(' ')[0];
+        // १ शमूएल जस्तो नाममा स्पेस हुने भएकोले अगाडिको मात्र नभई पूरै नाम लिनुपर्छ
+        const fullBookNameRaw = bookSelect.options[bookSelect.selectedIndex].text;
+        const bookName = fullBookNameRaw.split(' (')[0]; // अङ्ग्रेजी नाम हटाएर नेपाली नाम मात्र लिने (जस्तै: १ राजा)
         
         let startCh = parseInt(document.getElementById('startCh').value) || 1;
         let endCh = parseInt(document.getElementById('endCh').value) || startCh;
@@ -310,7 +309,6 @@
             let processed = formatBibleText(fullBookData, startCh, endCh, startV, endV);
             textArea.value = processed.text;
             
-            // सन्दर्भको नाम तयार गर्ने (जस्तै: दानिएल ७:१-१५)
             let detailStr = `${bookName} ${startCh}`;
             if (startCh !== processed.finalC) { detailStr += `-${processed.finalC}`; }
             if (startV || processed.limited) {
@@ -322,7 +320,6 @@
             chapterDetails.value = detailStr;
 
             if(processed.limited) {
-                // लिमिट नाघेपछिको जानकारी
                 statusEl.innerHTML = `⚠️ अध्याय धेरै लामो भएकोले पद <b>${processed.finalV}</b> सम्म मात्र तानियो।<br>बाँकी तान्न अर्को पटक 'सुरु पद' मा <b>${processed.finalV + 1}</b> राखेर तान्नुहोस्।<br>✅ अहिलेलाई तल 'Generate' थिच्नुहोस्।`;
                 statusEl.style.color = "#d9534f"; 
             } else {
@@ -400,6 +397,10 @@
             return;
         }
 
+        const bookSelect = document.getElementById('bookSelect');
+        const fullBookNameRaw = bookSelect.options[bookSelect.selectedIndex].text;
+        const currentBookName = fullBookNameRaw.split(' (')[0]; 
+
         document.getElementById('generateBtn').disabled = true;
         previewContainer.style.display = 'none';
         downloadGroup.style.display = 'none';
@@ -424,10 +425,9 @@
 
 अति महत्त्वपूर्ण नियमहरू:
 १. ⚠️ ${dynamicInstruction}
-२. गलत विकल्पहरू (Distractors) सही उत्तर जत्तिकै लामा र एकदमै झुक्याउने हुनुपर्छ।
-३. सही उत्तर सधैं 'A' मा मात्र नराख्नुहोस्। सही उत्तर A, B, C, वा D मध्ये कुनै पनि हुन सक्ने गरी Randomly छर्नुहोस्।
-४. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ र त्यसमा "questions" नामको Array हुनुपर्छ।
-५. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
+२. ⚠️ गलत विकल्पहरू (Distractors) एकदमै तार्किक, लामो र झुक्याउने हुनुपर्छ। केवल एउटा शब्द मात्र फेरेर सजिलो नबनाउनुहोस्। सबै ४ वटै विकल्पहरू उस्तै-उस्तै लम्बाइका र बाइबलकै जस्ता लाग्ने तर ३ वटा गलत हुनुपर्छ।
+३. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ र त्यसमा "questions" नामको Array हुनुपर्छ।
+४. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
 {
   "category": "Nepali Bible Quiz",
   "bookDetails": "${chapterDetails}",
@@ -440,6 +440,7 @@
   "correctAnswer": "A/B/C/D",
   "correctAnswerText": "..."
 }
+५. ⚠️ "verseReference" मा अनिवार्य रूपमा पुस्तकको नामसहित लेख्नुहोस्। (जस्तै: '${currentBookName} १:४६')। केवल '१:४६' मात्र नलेख्नुहोस्।
 
 बाइबल पाठ:
 ${bibleText}`;
@@ -481,6 +482,40 @@ ${bibleText}`;
                 const jsonObject = JSON.parse(jsonString);
                 const finalArray = jsonObject.questions ? jsonObject.questions : jsonObject;
                 
+                // 💡 मास्टर ट्रिक: JS बाटै विकल्पहरूलाई Random Shuffle गर्ने
+                finalArray.forEach(q => {
+                    let opts = [
+                        { id: 'A', text: q.optionA, isCorrect: q.correctAnswer === 'A' },
+                        { id: 'B', text: q.optionB, isCorrect: q.correctAnswer === 'B' },
+                        { id: 'C', text: q.optionC, isCorrect: q.correctAnswer === 'C' },
+                        { id: 'D', text: q.optionD, isCorrect: q.correctAnswer === 'D' }
+                    ];
+                    
+                    // Shuffle Array
+                    for (let i = opts.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [opts[i], opts[j]] = [opts[j], opts[i]];
+                    }
+                    
+                    // Re-assign shuffled options
+                    q.optionA = opts[0].text;
+                    q.optionB = opts[1].text;
+                    q.optionC = opts[2].text;
+                    q.optionD = opts[3].text;
+                    
+                    if (opts[0].isCorrect) q.correctAnswer = 'A';
+                    else if (opts[1].isCorrect) q.correctAnswer = 'B';
+                    else if (opts[2].isCorrect) q.correctAnswer = 'C';
+                    else q.correctAnswer = 'D';
+
+                    // 💡 सन्दर्भमा पुस्तकको नाम छ/छैन चेक गर्ने (Fallback)
+                    if (q.verseReference && !q.verseReference.includes(currentBookName)) {
+                        if (q.verseReference.match(/^\d/)) { // यदि नम्बरबाट सुरु भएको छ भने
+                            q.verseReference = currentBookName + " " + q.verseReference;
+                        }
+                    }
+                });
+
                 generatedData = JSON.stringify(finalArray, null, 4); 
                 
                 let textToDisplay = `नेपाली बाइबल क्विज (${chapterDetails})\n\n`;
@@ -489,11 +524,10 @@ ${bibleText}`;
                     let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
                     let nepaliRef = toNepaliNum(rawRef); 
                     let exactText = q.correctAnswerText || q[`option${q.correctAnswer}`];
-                    let ansLetter = q.correctAnswer; // A, B, C or D
+                    let ansLetter = q.correctAnswer; 
                     
                     textToDisplay += `प्रश्न ${nepaliNum}: ${q.questionText}\n`;
                     textToDisplay += `   A. ${q.optionA}\n   B. ${q.optionB}\n   C. ${q.optionC}\n   D. ${q.optionD}\n`;
-                    // 💡 यहाँ A, B, C वा D को जानकारी थपिएको छ
                     textToDisplay += `✅ सही उत्तर:- ${ansLetter}. ${exactText} (सन्दर्भ: ${nepaliRef})\n\n`;
                 });
                 
@@ -585,7 +619,6 @@ ${bibleText}`;
             content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.6;'>`;
             content += `A. ${q.optionA}<br>B. ${q.optionB}<br>C. ${q.optionC}<br>D. ${q.optionD}`;
             content += `</div>`;
-            // 💡 Word मा पनि A, B, C, D देखिने भयो
             content += `<div style='font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;'>✅ सही उत्तर:- ${ansLetter}. ${exactText} <span style='font-size:14px; font-weight:normal; color:#666;'>(सन्दर्भ: ${nepaliRef})</span></div>`;
             content += `</div>`;
         });
@@ -624,7 +657,6 @@ ${bibleText}`;
             content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
             content += `A. ${q.optionA}<br>B. ${q.optionB}<br>C. ${q.optionC}<br>D. ${q.optionD}`;
             content += `</div>`;
-            // 💡 PDF मा पनि A, B, C, D देखिने भयो
             content += `<div style="font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;">✅ सही उत्तर:- ${ansLetter}. ${exactText} <span style="font-size:14px; font-weight:normal; color:#666;">(सन्दर्भ: ${nepaliRef})</span></div>`;
             content += `</div>`;
         });
