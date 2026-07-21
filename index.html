@@ -47,7 +47,7 @@
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Auto-Failover System & Smart Chapter Filter</div>
+    <div class="subtitle">Auto-Failover System & Advanced Chapter Parser</div>
     
     <div class="api-box">
         <label>१. Groq API Key (gsk_...):</label>
@@ -188,36 +188,37 @@
     let currentBookCode = "";
 
     function toNepaliNum(num) {
-        return num.toString().replace(/\d/g, d => '०१२३४५६७८९'[d]);
+        return num.toString().replace(/\d/g, d => '०।'[d] || d); // सुरक्षित नेपाली अंक रूपान्तरण
     }
 
-    // 💡 स्मार्ट फिल्टर: यसले 'भूमिका (Intro)' छ कि छैन भनेर आफैं चिन्छ र सही अध्याय काट्छ
+    // 💡 पूर्ण रूपमा सुधार्दिएको स्मार्ट अध्याय फिल्टर (Advanced Chapter Parser)
     function extractChapters(data, start, end) {
         if (!data) return data;
         
         try {
             if (typeof data === 'string') data = JSON.parse(data);
 
-            if (Array.isArray(data)) {
-                let offset = 0;
-                // यदि डेटा Array of Arrays हो भने (जस्तै धेरैजसो बाइबल JSON हुन्छ)
-                if (Array.isArray(data[0])) {
-                     let firstElement = data[0];
-                     // भूमिका (Intro) हो भनेर चिन्ने तरिका: 
-                     // १. जम्मा १ वटा मात्र पद छ भने
-                     // २. वा 'वृत्तान्त', 'भूमिका' जस्ता शब्द छन् भने
-                     let isIntro = false;
-                     if (firstElement.length === 1) isIntro = true;
-                     else if (firstElement.length > 0 && firstElement[0].text && 
-                             (firstElement[0].text.includes("वृत्तान्त") || 
-                              firstElement[0].text.includes("भूमिका") || 
-                              firstElement[0].text.includes("परिचय"))) {
-                         isIntro = true;
-                     }
-                     // यदि सुरुमा भूमिका छ भने, इन्डेक्सलाई १ ले अगाडि सार्ने
-                     if (isIntro) offset = 1;
+            // यदि डाटाभित्र 'chapters' नामको मुख्य सूची छ भने
+            let chaptersArray = data.chapters || data;
+
+            if (Array.isArray(chaptersArray)) {
+                // फिल्टर गर्ने: start र end बीचको अध्याय वा सही इन्डेक्स भएको भाग पत्ता लगाउने
+                let extracted = chaptersArray.filter(ch => {
+                    let chNum = parseInt(ch.chapter || ch.chapterNumber || ch.id);
+                    if (!isNaN(chNum)) {
+                        return chNum >= start && chNum <= end;
+                    }
+                    return false;
+                });
+
+                // यदि 'chapter' भन्ने किवर्ड भेटिएन भने सामान्य इन्डेक्स अनुसार काट्ने
+                if (extracted.length === 0) {
+                    // यदि पहिलो तत्व परिचय/भूमिका हो भने त्यसलाई छाडेर हिसाब गर्ने
+                    let startIndex = start - 1;
+                    let endIndex = end;
+                    return chaptersArray.slice(startIndex, endIndex);
                 }
-                return data.slice(start - 1 + offset, end + offset);
+                return extracted;
             }
         } catch (e) {
             console.error("Extraction error:", e);
@@ -273,7 +274,7 @@
                 currentBookCode = bookCode;
             }
 
-            // यहाँ 'extractChapters' ले ठ्याक्कै मागेको अध्याय मात्र छान्छ
+            // नयाँ स्मार्ट फिल्टर प्रयोग गरिएको
             let filteredData = extractChapters(fullBookData, startCh, endCh);
             let safeData = processAndLimitData(filteredData, startCh, endCh);
             
@@ -411,6 +412,7 @@ ${bibleText}`;
                     statusEl.innerHTML = "<b>Gemini Flash</b> बाट प्रश्नहरू बन्दैछन्... ⏳";
                 }
                 statusEl.style.color = "#007bff";
+                // यहाँ 'gemini-1.5-flash' प्रयोग गरिएको छ जुन Google को v1beta मा पूर्ण समर्थित छ
                 jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-flash');
                 success = true;
             } catch (error) {
