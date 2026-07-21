@@ -353,8 +353,8 @@ ${bibleText}`;
                 max_tokens: 4000
             });
         } else {
-            // यहाँ ठ्याक्कै भर्सन नम्बर तोकिएको छ (Not Found एरर आउन नदिन)
-            const modelName = provider === 'gemini_flash' ? 'gemini-1.5-flash-001' : 'gemini-1.5-pro-001';
+            // यहाँ ठ्याक्कै शुद्ध र मूल नाम मात्र राखिएको छ (gemini-1.5-flash / gemini-1.5-pro)
+            const modelName = provider === 'gemini_flash' ? 'gemini-1.5-flash' : 'gemini-1.5-pro';
             apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             requestHeaders = { 'Content-Type': 'application/json' };
             requestBody = JSON.stringify({
@@ -375,7 +375,13 @@ ${bibleText}`;
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.error?.message || "सर्भरमा समस्या आयो। API Key वा लिमिट चेक गर्नुहोस्।");
+                let errorMsg = errData.error?.message || "सर्भरमा समस्या आयो। API Key चेक गर्नुहोस्।";
+                
+                // गुगलको Not Found एरर आउँदा स्पष्ट नेपाली म्यासेज दिने
+                if(errorMsg.toLowerCase().includes("is not found") || errorMsg.toLowerCase().includes("not supported")) {
+                    errorMsg = "तपाईंको यो API Key ले नयाँ मोडल सपोर्ट गरेन। कृपया Google AI Studio बाट नयाँ 'API Key' बनाउनुहोस्।";
+                }
+                throw new Error(errorMsg);
             }
 
             const data = await response.json();
