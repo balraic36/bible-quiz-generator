@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NNRV Quiz Generator (Auto-Fallback)</title>
+    <title>NNRV Quiz Generator (Pro Auto-Failover)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
         .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
@@ -47,7 +47,7 @@
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Auto-Failover System (एउटा फेल हुँदा अर्को चल्ने)</div>
+    <div class="subtitle">Auto-Failover System & Smart Chapter Filter</div>
     
     <div class="api-box">
         <label>१. Groq API Key (gsk_...):</label>
@@ -155,7 +155,7 @@
         </div>
         <div>
             <label>अन्तिम अध्याय:</label>
-            <input type="number" id="endCh" value="5" min="1">
+            <input type="number" id="endCh" value="2" min="1">
         </div>
         <div>
             <button class="btn-fetch" onclick="fetchFromGitHub()">पाठ तान्नुहोस्</button>
@@ -191,27 +191,36 @@
         return num.toString().replace(/\d/g, d => '०१२३४५६७८९'[d]);
     }
 
-    // नयाँ थपिएको फिल्टर लजिक (जसले अध्यायलाई ठ्याक्कै काट्छ)
+    // 💡 स्मार्ट फिल्टर: यसले 'भूमिका (Intro)' छ कि छैन भनेर आफैं चिन्छ र सही अध्याय काट्छ
     function extractChapters(data, start, end) {
         if (!data) return data;
         
-        if (Array.isArray(data)) {
-            // यदि भित्रको अब्जेक्टमा 'chapter' भन्ने कुरा छ भने
-            if (data.length > 0 && typeof data[0] === 'object' && 'chapter' in data[0]) {
-                return data.filter(item => item.chapter >= start && item.chapter <= end);
-            }
-            // नत्र सामान्य Array हो भने काटेर लिने (Array को index 0 भनेको Chapter 1 हो)
-            return data.slice(start - 1, end);
-        } else if (typeof data === 'object' && data !== null) {
-            let result = {};
-            let found = false;
-            for (let i = start; i <= end; i++) {
-                if (data[i] || data[i.toString()]) {
-                    result[i] = data[i] || data[i.toString()];
-                    found = true;
+        try {
+            if (typeof data === 'string') data = JSON.parse(data);
+
+            if (Array.isArray(data)) {
+                let offset = 0;
+                // यदि डेटा Array of Arrays हो भने (जस्तै धेरैजसो बाइबल JSON हुन्छ)
+                if (Array.isArray(data[0])) {
+                     let firstElement = data[0];
+                     // भूमिका (Intro) हो भनेर चिन्ने तरिका: 
+                     // १. जम्मा १ वटा मात्र पद छ भने
+                     // २. वा 'वृत्तान्त', 'भूमिका' जस्ता शब्द छन् भने
+                     let isIntro = false;
+                     if (firstElement.length === 1) isIntro = true;
+                     else if (firstElement.length > 0 && firstElement[0].text && 
+                             (firstElement[0].text.includes("वृत्तान्त") || 
+                              firstElement[0].text.includes("भूमिका") || 
+                              firstElement[0].text.includes("परिचय"))) {
+                         isIntro = true;
+                     }
+                     // यदि सुरुमा भूमिका छ भने, इन्डेक्सलाई १ ले अगाडि सार्ने
+                     if (isIntro) offset = 1;
                 }
+                return data.slice(start - 1 + offset, end + offset);
             }
-            return found ? result : data;
+        } catch (e) {
+            console.error("Extraction error:", e);
         }
         return data;
     }
@@ -264,7 +273,7 @@
                 currentBookCode = bookCode;
             }
 
-            // यहाँनिर फिल्टर गर्ने फङ्सन प्रयोग गरिएको छ
+            // यहाँ 'extractChapters' ले ठ्याक्कै मागेको अध्याय मात्र छान्छ
             let filteredData = extractChapters(fullBookData, startCh, endCh);
             let safeData = processAndLimitData(filteredData, startCh, endCh);
             
