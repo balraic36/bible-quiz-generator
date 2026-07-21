@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NNRV Quiz Generator (Pro Multi-Engine Failover)</title>
+    <title>NNRV Quiz Generator (Groq + Gemini)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
         .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
@@ -26,13 +26,15 @@
         .btn-csv { background-color: #107c41; color: white; }
         .btn-word { background-color: #2b579a; color: white; }
         .btn-pdf { background-color: #d9534f; color: white; }
+        .btn-copy { background-color: #6c757d; color: white; }
+        .btn-copy:hover { background-color: #5a6268; }
         
         #status { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center; line-height: 1.5; }
         .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-top: 5px; }
         .flex-row > div { flex: 1; }
         
         .api-box { background-color: #fdfdfd; border: 1px solid #e0e0e0; padding: 10px; border-radius: 8px; margin-top: 10px; }
-        .hint-text { font-size: 11px; color: #666; margin-top: 5px; }
+        .hint-text { font-size: 12px; color: #555; margin-top: 8px; line-height: 1.4; }
 
         #printArea { display: none; }
         @media print {
@@ -47,15 +49,15 @@
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Multi-Engine Smart Failover System</div>
+    <div class="subtitle">Groq + Gemini Smart Engine</div>
     
     <div class="api-box">
-        <label>१. Groq API Key (सबैभन्दा छिटो):</label>
+        <label>१. Groq API Key (मुख्य र छिटो):</label>
         <input type="password" id="groqKey" placeholder="gsk_...">
         
-        <label>२. Gemini API Key (विकल्प):</label>
+        <label>२. Gemini API Key (वैकल्पिक):</label>
         <input type="password" id="geminiKey" placeholder="AIza...">
-        <div class="hint-text">💡 Key नभएमा वा एउटा फेल हुँदा एपले स्वतः बैकअप AI इन्जिन प्रयोग गर्नेछ।</div>
+        <div class="hint-text">💡 <b>जानकारी:</b> Groq ले काम नगरेमा वा लिमिट पुगेमा एपले स्वतः Gemini प्रयोग गर्नेछ।</div>
     </div>
 
     <div class="flex-row">
@@ -173,10 +175,11 @@
     <div id="status"></div>
 
     <div class="download-group" id="downloadGroup">
-        <button class="btn-json" onclick="downloadJSON()">JSON डाउनलोड गर्नुहोस् ⬇️</button>
-        <button class="btn-csv" onclick="downloadCSV()">Excel (CSV) डाउनलोड गर्नुहोस् 📊</button>
-        <button class="btn-word" onclick="downloadWord()">Word (DOC) डाउनलोड गर्नुहोस् 📝</button>
-        <button class="btn-pdf" onclick="downloadPDF()">PDF सेभ / प्रिन्ट गर्नुहोस् 🖨️</button>
+        <button class="btn-copy" onclick="copyToClipboard()">📋 क्लिपबोर्डमा टेक्स्ट कपि गर्नुहोस्</button>
+        <button class="btn-word" onclick="downloadWord()">📝 Word (DOC) डाउनलोड गर्नुहोस्</button>
+        <button class="btn-pdf" onclick="downloadPDF()">🖨️ PDF सेभ / प्रिन्ट गर्नुहोस्</button>
+        <button class="btn-csv" onclick="downloadCSV()">📊 Excel (CSV) डाउनलोड गर्नुहोस्</button>
+        <button class="btn-json" onclick="downloadJSON()">⬇️ JSON डाउनलोड गर्नुहोस्</button>
     </div>
 </div>
 
@@ -187,13 +190,11 @@
     let fullBookData = null; 
     let currentBookCode = "";
 
-    // सच्याइएको नेपाली अंक रूपान्तरण
     function toNepaliNum(num) {
         const nepDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
         return num.toString().replace(/\d/g, d => nepDigits[d]);
     }
 
-    // स्मार्ट अध्याय फिल्टर तथा सीमा चेक
     function extractChaptersAndCheckLimit(data, start, end) {
         let chaptersArray = data.chapters || data;
         let maxChapter = 1;
@@ -281,7 +282,6 @@
         }
     }
 
-    // Engine 1: Groq API
     async function callGroq(apiKey, prompt) {
         const url = `https://api.groq.com/openai/v1/chat/completions`;
         const response = await fetch(url, {
@@ -300,13 +300,12 @@
         });
         if (!response.ok) {
             const errData = await response.json();
-            throw new Error("Groq Error: " + (errData.error?.message || "सर्भरले काम गरेन।"));
+            throw new Error(errData.error?.message || "Groq सर्भरले काम गरेन।");
         }
         const data = await response.json();
         return data.choices[0].message.content;
     }
 
-    // Engine 2: Gemini API
     async function callGemini(apiKey, prompt, modelVersion) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelVersion}:generateContent?key=${apiKey}`;
         const response = await fetch(url, {
@@ -319,34 +318,12 @@
         });
         if (!response.ok) {
             const errData = await response.json();
-            throw new Error("Gemini Error: " + (errData.error?.message || "सर्भरले काम गरेन।"));
+            throw new Error(errData.error?.message || "Gemini सर्भरले काम गरेन।");
         }
         const data = await response.json();
         return data.candidates[0].content.parts[0].text;
     }
 
-    // Engine 3: Backup Free Engine (No Key Needed)
-    async function callFreeBackupEngine(prompt) {
-        const url = "https://text.pollinations.ai/";
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: [
-                    { role: "system", content: "You are a helpful assistant designed to output strictly JSON." },
-                    { role: "user", content: prompt }
-                ],
-                model: "openai",
-                jsonMode: true
-            })
-        });
-        if (!response.ok) {
-            throw new Error("Free Backup Engine Busy");
-        }
-        return await response.text();
-    }
-
-    // Smart Multi-Engine Auto-Failover Logic
     async function generateQuestions() {
         const groqKey = document.getElementById('groqKey').value.trim();
         const geminiKey = document.getElementById('geminiKey').value.trim();
@@ -356,6 +333,12 @@
         const bibleText = document.getElementById('bibleText').value.trim();
         const statusEl = document.getElementById('status');
         const downloadGroup = document.getElementById('downloadGroup');
+
+        if (!groqKey && !geminiKey) {
+            statusEl.innerHTML = "❌ कृपया कम्तिमा एउटा API Key (Groq वा Gemini) हाल्नुहोस्!";
+            statusEl.style.color = "red";
+            return;
+        }
 
         if (!chapterDetails || !bibleText) {
             statusEl.innerHTML = "❌ कृपया पाठ तान्नुहोस् र विवरण भर्नुहोस्!";
@@ -393,6 +376,7 @@ ${bibleText}`;
 
         let jsonString = null;
         let success = false;
+        let errorMessage = "";
 
         // १. इन्जिन १ (Groq) ट्राइ गर्ने
         if (groqKey && !success) {
@@ -402,37 +386,26 @@ ${bibleText}`;
                 jsonString = await callGroq(groqKey, prompt);
                 success = true;
             } catch (error) {
-                console.warn("Groq failed, trying fallback...", error);
+                console.warn("Groq failed:", error);
+                errorMessage += `Groq Error: ${error.message} <br>`;
             }
         }
 
         // २. इन्जिन २ (Gemini) ट्राइ गर्ने
         if (geminiKey && !success) {
             try {
-                statusEl.innerHTML = "🔄 Groq उपलब्ध भएन। <b>Gemini (इन्जिन २)</b> ट्राइ गर्दैछ... ⏳";
+                statusEl.innerHTML = "🔄 <b>Gemini (इन्जिन २)</b> प्रयोग गर्दैछ... ⏳";
                 statusEl.style.color = "#007bff";
                 jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-flash');
                 success = true;
             } catch (error) {
-                console.warn("Gemini Flash failed, trying Pro...", error);
+                console.warn("Gemini Flash failed:", error);
                 try {
                     jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-pro');
                     success = true;
                 } catch (errPro) {
-                    console.warn("Gemini Pro failed...", errPro);
+                    errorMessage += `Gemini Error: ${errPro.message} <br>`;
                 }
-            }
-        }
-
-        // ३. इन्जिन ३ (Free Backup Engine) ट्राइ गर्ने
-        if (!success) {
-            try {
-                statusEl.innerHTML = "🔄 <b>निःशुल्क ब्याकअप AI (इन्जिन ३)</b> प्रयोग गर्दैछ... ⏳";
-                statusEl.style.color = "#007bff";
-                jsonString = await callFreeBackupEngine(prompt);
-                success = true;
-            } catch (error) {
-                console.error("Backup Engine failed...", error);
             }
         }
 
@@ -444,19 +417,40 @@ ${bibleText}`;
                 
                 generatedData = JSON.stringify(finalArray, null, 4); 
                 
-                statusEl.innerHTML = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड गर्नुहोस्।";
+                statusEl.innerHTML = "✅ सफलता! प्रश्नहरू तयार भए। तलबाट डाउनलोड वा कपि गर्नुहोस्।";
                 statusEl.style.color = "green";
                 downloadGroup.style.display = 'flex'; 
             } catch (parseError) {
-                statusEl.innerHTML = "❌ त्रुटि: AI ले सही ढाँचामा प्रश्न दिएन। फेरि प्रयास गर्नुहोस्।";
+                statusEl.innerHTML = "❌ त्रुटि: AI ले सही ढाँचामा प्रश्न दिएन। कृपया फेरि प्रयास गर्नुहोस्।";
                 statusEl.style.color = "red";
             }
         } else {
-            statusEl.innerHTML = "❌ त्रुटि: सबै AI इन्जिन व्यस्त छन्। कृपया १ मिनेटपछि पुनः प्रयास गर्नुहोस्।";
+            statusEl.innerHTML = `❌ त्रुटि: API ले काम गरेन। <br><span style="font-size:12px; color:#555;">${errorMessage}</span>`;
             statusEl.style.color = "red";
         }
 
         document.getElementById('generateBtn').disabled = false;
+    }
+
+    // नयाँ सुविधा: टेक्स्ट कपि गर्ने
+    function copyToClipboard() {
+        if (!generatedData) return;
+        const data = JSON.parse(generatedData);
+        let textToCopy = `बाइबल Quiz प्रश्नहरु (${document.getElementById('chapterDetails').value.trim()})\n\n`;
+        
+        data.forEach((q, index) => {
+            let nepaliNum = toNepaliNum(index + 1);
+            let ref = q.verseReference ? q.verseReference : q.bookDetails;
+            textToCopy += `${nepaliNum}) ${q.questionText}\n`;
+            textToCopy += `A: ${q.optionA}\nB: ${q.optionB}\nC: ${q.optionC}\nD: ${q.optionD}\n`;
+            textToCopy += `सही उत्तर: ${q.correctAnswer} (सन्दर्भ: ${ref})\n\n`;
+        });
+
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            alert("✅ प्रश्नहरू सफलतापूर्वक क्लिपबोर्डमा कपि भयो! अब Word वा WhatsApp मा गएर Paste गर्नुहोस्।");
+        }).catch(err => {
+            alert("❌ कपि गर्न सकिएन।");
+        });
     }
 
     function downloadJSON() {
