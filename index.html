@@ -52,7 +52,7 @@
 
 <div class="container">
     <h2>नेपाली बाइबल क्विज ⚡</h2>
-    <div class="subtitle">AI Quiz Generator (Auto-Failover)</div>
+    <div class="subtitle">AI Quiz Generator (Smart Verse Splitter)</div>
     
     <div class="api-box">
         <label>१. Groq API Key (मुख्य र छिटो):</label>
@@ -60,7 +60,7 @@
         
         <label>२. Gemini API Key (वैकल्पिक):</label>
         <input type="password" id="geminiKey" placeholder="AIza...">
-        <div class="hint-text">💡 <b>जानकारी:</b> Groq ले काम नगरेमा वा लिमिट पुगेमा एपले स्वतः Gemini प्रयोग गर्नेछ।</div>
+        <div class="hint-text">💡 <b>जानकारी:</b> Groq ले काम नगरेमा एपले स्वतः Gemini प्रयोग गर्नेछ।</div>
     </div>
 
     <div class="flex-row">
@@ -69,7 +69,6 @@
             <input type="number" id="qCount" value="20" min="1" max="50">
         </div>
         <div>
-            <!-- 💡 यहाँ तपाईंले भन्नुभएका सबै प्रकारका नयाँ विकल्पहरू थपिएका छन् -->
             <label>प्रश्नको प्रकार / स्तर:</label>
             <select id="difficulty">
                 <optgroup label="सामान्य स्तर">
@@ -174,7 +173,19 @@
         </div>
         <div>
             <label>अन्तिम अध्याय:</label>
-            <input type="number" id="endCh" value="2" min="1">
+            <input type="number" id="endCh" value="1" min="1">
+        </div>
+    </div>
+    
+    <!-- 💡 नयाँ पद (Verse) छान्ने बक्सहरू -->
+    <div class="flex-row">
+        <div>
+            <label>सुरु पद (छैन भने खाली):</label>
+            <input type="number" id="startVerse" placeholder="सबै" min="1">
+        </div>
+        <div>
+            <label>अन्तिम पद (छैन भने खाली):</label>
+            <input type="number" id="endVerse" placeholder="सबै" min="1">
         </div>
         <div>
             <button class="btn-fetch" onclick="fetchFromGitHub()">पाठ तान्नुहोस्</button>
@@ -182,9 +193,9 @@
     </div>
 
     <label>बाइबलको पाठ (Text):</label>
-    <textarea id="bibleText" rows="6" placeholder="अध्याय छानेर 'पाठ तान्नुहोस्' थिच्नुहोस्..."></textarea>
+    <textarea id="bibleText" rows="6" placeholder="अध्याय र पद छानेर 'पाठ तान्नुहोस्' थिच्नुहोस्..."></textarea>
 
-    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: रूथ २):</label>
+    <label>प्रश्नमा कुन अध्याय/पद देखिने? (जस्तै: दानिएल ७:१-१५):</label>
     <input type="text" id="chapterDetails" placeholder="अटोमेटिक भरिनेछ...">
 
     <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू बनाउनुहोस् (Generate)</button>
@@ -219,57 +230,51 @@
         return str.toString().replace(/\d/g, d => nepDigits[d]);
     }
 
-    function extractChaptersAndCheckLimit(data, start, end) {
+    // 💡 स्मार्ट पद-विभाजक: JSON लाई टेक्स्टमा बदलेर टोकन बचाउने र लामो अध्यायमा लिमिट लगाउने
+    function formatBibleText(data, startC, endC, startV, endV) {
         let chaptersArray = data.chapters || data;
-        let maxChapter = 1;
-        let warningMsg = "";
+        if (!Array.isArray(chaptersArray)) return { text: JSON.stringify(data), limited: false, finalC: endC, finalV: endV };
 
-        if (Array.isArray(chaptersArray)) {
-            let chapterNums = chaptersArray.map(ch => parseInt(ch.chapter || ch.chapterNumber || ch.id)).filter(n => !isNaN(n));
-            if (chapterNums.length > 0) {
-                maxChapter = Math.max(...chapterNums);
-            } else {
-                maxChapter = chaptersArray.length;
-            }
-
-            if (end > maxChapter) {
-                warningMsg = `⚠️ यो पुस्तकमा जम्मा ${maxChapter} अध्याय मात्र छन्। अध्याय ${maxChapter} सम्म तानिएको छ।`;
-                end = maxChapter;
-                document.getElementById('endCh').value = maxChapter;
-            }
-            if (start > maxChapter) {
-                start = maxChapter;
-                document.getElementById('startCh').value = maxChapter;
-            }
-
-            let extracted = chaptersArray.filter(ch => {
-                let chNum = parseInt(ch.chapter || ch.chapterNumber || ch.id);
-                return (!isNaN(chNum)) && (chNum >= start && chNum <= end);
-            });
-
-            if (extracted.length === 0) {
-                extracted = chaptersArray.slice(start - 1, end);
-            }
-            return { extractedData: extracted, finalEndCh: end, message: warningMsg };
-        }
-        return { extractedData: data, finalEndCh: end, message: "" };
-    }
-
-    function processAndLimitData(data, start, end) {
-        const geminiKey = document.getElementById('geminiKey').value.trim();
-        const SAFE_CHAR_LIMIT = geminiKey ? 100000 : 15000; 
+        let resultText = "";
+        let limited = false;
+        let finalC = startC;
+        let finalV = startV || 1;
+        // AI मोडलहरूको सुरक्षित लिमिट (Plain Text भएकोले धेरै अटाउँछ)
+        const LIMIT = document.getElementById('geminiKey').value ? 50000 : 25000; 
         
-        let rawString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-        
-        if (rawString.length > SAFE_CHAR_LIMIT) {
-            let safeString = rawString.substring(0, SAFE_CHAR_LIMIT);
-            let lastBrace = safeString.lastIndexOf('}');
-            if (lastBrace > SAFE_CHAR_LIMIT * 0.7) {
-                safeString = safeString.substring(0, lastBrace + 1) + "\n\n... (Token Limit को कारण अटोमेटिक मिलाइएको)";
+        let validChapters = chaptersArray.filter(ch => {
+            let chNum = parseInt(ch.chapter || ch.chapterNumber || ch.id);
+            return !isNaN(chNum) && chNum >= startC && chNum <= endC;
+        });
+
+        for (let ch of validChapters) {
+            let chNum = parseInt(ch.chapter || ch.chapterNumber || ch.id);
+            let verses = ch.verses || ch.verse || [];
+            if (!Array.isArray(verses)) continue;
+
+            resultText += `\n[अध्याय ${chNum}]\n`;
+            
+            for (let v of verses) {
+                let vNumStr = v.id || v.verse || v.verseNumber;
+                let vNum = parseInt(vNumStr);
+                if (isNaN(vNum)) continue;
+
+                if (chNum === startC && startV && vNum < startV) continue;
+                if (chNum === endC && endV && vNum > endV) continue;
+
+                let verseStr = `${vNum}. ${v.text}\n`;
+                if (resultText.length + verseStr.length > LIMIT) {
+                    limited = true;
+                    break; 
+                }
+                resultText += verseStr;
+                finalC = chNum;
+                finalV = vNum;
             }
-            return { text: safeString, actualEndCh: start, wasLimited: true };
+            if (limited) break;
         }
-        return { text: data, actualEndCh: end, wasLimited: false };
+
+        return { text: resultText.trim(), limited: limited, finalC: finalC, finalV: finalV };
     }
 
     async function fetchFromGitHub() {
@@ -279,11 +284,10 @@
         
         let startCh = parseInt(document.getElementById('startCh').value) || 1;
         let endCh = parseInt(document.getElementById('endCh').value) || startCh;
+        let startV = parseInt(document.getElementById('startVerse').value) || null;
+        let endV = parseInt(document.getElementById('endVerse').value) || null;
         
-        if (startCh > endCh) {
-            endCh = startCh;
-            document.getElementById('endCh').value = endCh;
-        }
+        if (startCh > endCh) { endCh = startCh; document.getElementById('endCh').value = endCh; }
 
         const url = `https://raw.githubusercontent.com/iyamsamrat/NNRV_Bible/main/${bookCode}.json`;
         const statusEl = document.getElementById('status');
@@ -303,19 +307,26 @@
                 currentBookCode = bookCode;
             }
 
-            let processed = extractChaptersAndCheckLimit(fullBookData, startCh, endCh);
-            let safeData = processAndLimitData(processed.extractedData, startCh, processed.finalEndCh);
+            let processed = formatBibleText(fullBookData, startCh, endCh, startV, endV);
+            textArea.value = processed.text;
             
-            textArea.value = typeof safeData.text === 'string' ? safeData.text : JSON.stringify(safeData.text, null, 2);
-            
-            let finalRange = startCh === processed.finalEndCh ? `${startCh}` : `${startCh}-${processed.finalEndCh}`;
-            chapterDetails.value = `${bookName} ${finalRange}`;
+            // सन्दर्भको नाम तयार गर्ने (जस्तै: दानिएल ७:१-१५)
+            let detailStr = `${bookName} ${startCh}`;
+            if (startCh !== processed.finalC) { detailStr += `-${processed.finalC}`; }
+            if (startV || processed.limited) {
+                let sv = startV || 1;
+                detailStr += `:${sv}-${processed.finalV}`;
+            } else if (endV) {
+                detailStr += `:1-${endV}`;
+            }
+            chapterDetails.value = detailStr;
 
-            if(processed.message || safeData.wasLimited) {
-                statusEl.innerHTML = (processed.message || "⚠️ टोकन लिमिटको कारण डाटा घटाइएको छ।") + "<br>✅ पाठ तानियो! अब Generate थिच्नुहोस्।";
+            if(processed.limited) {
+                // लिमिट नाघेपछिको जानकारी
+                statusEl.innerHTML = `⚠️ अध्याय धेरै लामो भएकोले पद <b>${processed.finalV}</b> सम्म मात्र तानियो।<br>बाँकी तान्न अर्को पटक 'सुरु पद' मा <b>${processed.finalV + 1}</b> राखेर तान्नुहोस्।<br>✅ अहिलेलाई तल 'Generate' थिच्नुहोस्।`;
                 statusEl.style.color = "#d9534f"; 
             } else {
-                statusEl.innerHTML = `✅ अध्याय ${finalRange} सफलतापूर्वक तानियो! अब Generate थिच्नुहोस्।`;
+                statusEl.innerHTML = `✅ ${detailStr} सफलतापूर्वक तानियो! अब Generate थिच्नुहोस्।`;
                 statusEl.style.color = "green";
             }
         } catch (error) {
@@ -393,44 +404,19 @@
         previewContainer.style.display = 'none';
         downloadGroup.style.display = 'none';
 
-        // 💡 यहाँ प्रयोगकर्ताले छानेको प्रकार अनुसार AI लाई कडा निर्देशन दिइनेछ
         let dynamicInstruction = "";
         switch(difficulty) {
-            case 'FillInTheBlank':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "खाली ठाउँ भर्ने (Fill in the blanks)" शैलीका मात्र हुनुपर्छ। जस्तै: 'परमप्रभुले तिम्रो कामको _________ दिऊन्। खाली ठाउँमा के हुन्छ?'`;
-                break;
-            case 'FillInTheBlank':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "खाली ठाउँ भर्ने (Fill in the blanks)" शैलीका मात्र हुनुपर्छ। जस्तै: 'परमप्रभुले तिम्रो कामको _________ दिऊन्। खाली ठाउँमा के हुन्छ?'`;
-                break;
-            case 'FactBased':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "तथ्यमा आधारित (Fact checking)" शैलीका मात्र हुनुपर्छ (जस्तै: कति, को, कहाँ, कहिले)।`;
-                break;
-            case 'QuoteBased':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "भनाइमा आधारित (Who said to whom)" शैलीका मात्र हुनुपर्छ। जस्तै: 'यो कुरा कसले कसलाई भन्यो?'`;
-                break;
-            case 'CommandBased':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "आदेश वा निर्देशनमा आधारित (Command/Instruction based)" शैलीका मात्र हुनुपर्छ।`;
-                break;
-            case 'ReasoningBased':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "कारण खोज्ने प्रश्न (Reasoning based)" शैलीका मात्र हुनुपर्छ। (जस्तै: किन त्यसो भनियो? कारण के थियो?)`;
-                break;
-            case 'ActionBased':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "कार्यमा आधारित प्रश्न (Action based)" शैलीका मात्र हुनुपर्छ। (जस्तै: उसले के गर्यो? के कदम चालियो?)`;
-                break;
-            case 'PromiseBased':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "प्रतिज्ञामा आधारित (Promise based)" शैलीका मात्र हुनुपर्छ। (जस्तै: के प्रतिज्ञा वा वाचा गरियो?)`;
-                break;
-            case 'NameIdentityBased':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "नाम र पहिचानमा आधारित (Name and Identity based)" शैलीका मात्र हुनुपर्छ।`;
-                break;
-            case 'LocationTravelBased':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "स्थान र यात्रा सम्बन्धी (Location and Travel based)" शैलीका मात्र हुनुपर्छ।`;
-                break;
-            case 'Mixed':
-                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू भनाइमा आधारित, आदेशमा आधारित, कारण खोज्ने, खाली ठाउँ भर्ने, तथ्यमा आधारित आदि सबै प्रकारलाई बराबर मात्रामा मिसाएर बनाउनुहोस्।`;
-                break;
-            default: // Easy, Medium, Hard
-                dynamicInstruction = `प्रश्नको स्तर: सबै ${qCount} वटै प्रश्नहरू '${difficulty}' स्तरका बनाउनुहोस्। प्रश्नहरू भनाइ, तथ्य, खाली ठाउँ, कारण आदि सबै शैलीलाई मिसाएर सोध्नुहोस्।`;
+            case 'FillInTheBlank': dynamicInstruction = `सबै ${qCount} प्रश्नहरू "खाली ठाउँ भर्ने" शैलीका मात्र हुनुपर्छ।`; break;
+            case 'FactBased': dynamicInstruction = `सबै ${qCount} प्रश्नहरू "तथ्यमा आधारित (कति, को, कहाँ)" शैलीका मात्र हुनुपर्छ।`; break;
+            case 'QuoteBased': dynamicInstruction = `सबै ${qCount} प्रश्नहरू "भनाइमा आधारित (कसले कसलाई)" शैलीका मात्र हुनुपर्छ।`; break;
+            case 'CommandBased': dynamicInstruction = `सबै ${qCount} प्रश्नहरू "आदेश वा निर्देशन" शैलीका मात्र हुनुपर्छ।`; break;
+            case 'ReasoningBased': dynamicInstruction = `सबै ${qCount} प्रश्नहरू "कारण खोज्ने (किन)" शैलीका मात्र हुनुपर्छ।`; break;
+            case 'ActionBased': dynamicInstruction = `सबै ${qCount} प्रश्नहरू "कार्यमा आधारित (के गर्यो)" शैलीका मात्र हुनुपर्छ।`; break;
+            case 'PromiseBased': dynamicInstruction = `सबै ${qCount} प्रश्नहरू "प्रतिज्ञा वा वाचा" शैलीका मात्र हुनुपर्छ।`; break;
+            case 'NameIdentityBased': dynamicInstruction = `सबै ${qCount} प्रश्नहरू "नाम र पहिचान" शैलीका मात्र हुनुपर्छ।`; break;
+            case 'LocationTravelBased': dynamicInstruction = `सबै ${qCount} प्रश्नहरू "स्थान र यात्रा" सम्बन्धी मात्र हुनुपर्छ।`; break;
+            case 'Mixed': dynamicInstruction = `सबै ${qCount} प्रश्नहरू माथिका सबै शैलीलाई बराबर मात्रामा मिसाएर बनाउनुहोस्।`; break;
+            default: dynamicInstruction = `सबै ${qCount} प्रश्नहरू '${difficulty}' स्तरका विभिन्न शैली मिसाएर बनाउनुहोस्।`;
         }
 
         const prompt = `तपाईं एक "नेपाली बाइबल क्विज (Nepali Bible Quiz)" विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
@@ -452,9 +438,8 @@
   "optionC": "...",
   "optionD": "...",
   "correctAnswer": "A/B/C/D",
-  "correctAnswerText": "..." // ⚠️ यहाँ सही उत्तरको ठ्याक्कै विकल्पको शब्द मात्र लेख्नुहोस् (जस्तै: 'एक एपा जति' वा 'पूरा प्रतिफल')
+  "correctAnswerText": "..."
 }
-६. "verseReference" मा कुन पुस्तक, अध्याय र पदबाट प्रश्न सोधिएको हो, त्यो लेख्नुहोस् (जस्तै: रूथ २:१७)।
 
 बाइबल पाठ:
 ${bibleText}`;
@@ -470,7 +455,6 @@ ${bibleText}`;
                 jsonString = await callGroq(groqKey, prompt);
                 success = true;
             } catch (error) {
-                console.warn("Groq failed:", error);
                 errorMessage += `Groq Error: ${error.message} <br>`;
             }
         }
@@ -482,7 +466,6 @@ ${bibleText}`;
                 jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-flash');
                 success = true;
             } catch (error) {
-                console.warn("Gemini Flash failed:", error);
                 try {
                     jsonString = await callGemini(geminiKey, prompt, 'gemini-1.5-pro');
                     success = true;
@@ -506,10 +489,12 @@ ${bibleText}`;
                     let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
                     let nepaliRef = toNepaliNum(rawRef); 
                     let exactText = q.correctAnswerText || q[`option${q.correctAnswer}`];
+                    let ansLetter = q.correctAnswer; // A, B, C or D
                     
                     textToDisplay += `प्रश्न ${nepaliNum}: ${q.questionText}\n`;
                     textToDisplay += `   A. ${q.optionA}\n   B. ${q.optionB}\n   C. ${q.optionC}\n   D. ${q.optionD}\n`;
-                    textToDisplay += `✅ सही उत्तर:- ${exactText} (सन्दर्भ: ${nepaliRef})\n\n`;
+                    // 💡 यहाँ A, B, C वा D को जानकारी थपिएको छ
+                    textToDisplay += `✅ सही उत्तर:- ${ansLetter}. ${exactText} (सन्दर्भ: ${nepaliRef})\n\n`;
                 });
                 
                 document.getElementById('outputPreview').value = textToDisplay;
@@ -593,13 +578,15 @@ ${bibleText}`;
             let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
             let nepaliRef = toNepaliNum(rawRef);
             let exactText = q.correctAnswerText || q[`option${q.correctAnswer}`];
+            let ansLetter = q.correctAnswer;
 
             content += `<div style='margin-bottom: 18px;'>`;
             content += `<div style='font-size: 16px; font-weight: bold; margin-bottom: 5px;'>प्रश्न ${nepaliNum}: ${q.questionText}</div>`;
             content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.6;'>`;
             content += `A. ${q.optionA}<br>B. ${q.optionB}<br>C. ${q.optionC}<br>D. ${q.optionD}`;
             content += `</div>`;
-            content += `<div style='font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;'>✅ सही उत्तर:- ${exactText} <span style='font-size:14px; font-weight:normal; color:#666;'>(सन्दर्भ: ${nepaliRef})</span></div>`;
+            // 💡 Word मा पनि A, B, C, D देखिने भयो
+            content += `<div style='font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;'>✅ सही उत्तर:- ${ansLetter}. ${exactText} <span style='font-size:14px; font-weight:normal; color:#666;'>(सन्दर्भ: ${nepaliRef})</span></div>`;
             content += `</div>`;
         });
         content += `</body></html>`;
@@ -630,13 +617,15 @@ ${bibleText}`;
             let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
             let nepaliRef = toNepaliNum(rawRef);
             let exactText = q.correctAnswerText || q[`option${q.correctAnswer}`];
+            let ansLetter = q.correctAnswer;
 
             content += `<div class="page-break-safe" style="margin-bottom: 20px;">`;
             content += `<div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">प्रश्न ${nepaliNum}: ${q.questionText}</div>`;
             content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
             content += `A. ${q.optionA}<br>B. ${q.optionB}<br>C. ${q.optionC}<br>D. ${q.optionD}`;
             content += `</div>`;
-            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;">✅ सही उत्तर:- ${exactText} <span style="font-size:14px; font-weight:normal; color:#666;">(सन्दर्भ: ${nepaliRef})</span></div>`;
+            // 💡 PDF मा पनि A, B, C, D देखिने भयो
+            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 6px; margin-left: 20px; color: #0b5e31;">✅ सही उत्तर:- ${ansLetter}. ${exactText} <span style="font-size:14px; font-weight:normal; color:#666;">(सन्दर्भ: ${nepaliRef})</span></div>`;
             content += `</div>`;
         });
         content += `</div>`;
