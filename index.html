@@ -353,14 +353,13 @@ ${bibleText}`;
                 max_tokens: 4000
             });
         } else {
-            // यहाँ ठ्याक्कै शुद्ध र मूल नाम मात्र राखिएको छ (gemini-1.5-flash / gemini-1.5-pro)
             const modelName = provider === 'gemini_flash' ? 'gemini-1.5-flash' : 'gemini-1.5-pro';
             apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             requestHeaders = { 'Content-Type': 'application/json' };
             requestBody = JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { 
-                    response_mime_type: "application/json",
+                    responseMimeType: "application/json", /* 👈 यो लाइन सच्याइएको छ (response_mime_type हटाइयो) */
                     temperature: 0.3 
                 }
             });
@@ -375,13 +374,8 @@ ${bibleText}`;
 
             if (!response.ok) {
                 const errData = await response.json();
-                let errorMsg = errData.error?.message || "सर्भरमा समस्या आयो। API Key चेक गर्नुहोस्।";
-                
-                // गुगलको Not Found एरर आउँदा स्पष्ट नेपाली म्यासेज दिने
-                if(errorMsg.toLowerCase().includes("is not found") || errorMsg.toLowerCase().includes("not supported")) {
-                    errorMsg = "तपाईंको यो API Key ले नयाँ मोडल सपोर्ट गरेन। कृपया Google AI Studio बाट नयाँ 'API Key' बनाउनुहोस्।";
-                }
-                throw new Error(errorMsg);
+                // अब यसले गुगलले पठाएको वास्तविक त्रुटि नै देखाउनेछ
+                throw new Error(errData.error?.message || "सर्भरमा समस्या आयो। API Key चेक गर्नुहोस्।");
             }
 
             const data = await response.json();
@@ -411,6 +405,7 @@ ${bibleText}`;
             downloadGroup.style.display = 'flex'; 
 
         } catch (error) {
+            // वास्तविक त्रुटि म्यासेज यहाँ देखिनेछ
             statusEl.innerText = "❌ त्रुटि: " + error.message;
             statusEl.style.color = "red";
             console.error(error);
