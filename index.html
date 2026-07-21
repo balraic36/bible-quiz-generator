@@ -35,6 +35,7 @@
         #status { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center; line-height: 1.4; }
         .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-top: 5px; }
         .flex-row > div { flex: 1; }
+        .key-hint { font-size: 11px; color: #d9534f; margin-top: 5px; font-weight: bold; }
 
         #printArea { display: none; }
         @media print {
@@ -60,6 +61,7 @@
 
     <label id="apiKeyLabel">Groq API Key:</label>
     <input type="password" id="apiKey" placeholder="gsk_...">
+    <div class="key-hint" id="keyHint">⚠️ Groq को लागि 'gsk_' बाट सुरु हुने Key हाल्नुहोस्।</div>
 
     <div class="flex-row">
         <div>
@@ -168,7 +170,7 @@
     <label>बाइबलको पाठ (Text):</label>
     <textarea id="bibleText" rows="6" placeholder="अध्याय छानेर 'पाठ तान्नुहोस्' थिच्नुहोस्..."></textarea>
 
-    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: दानिएल २):</label>
+    <label>प्रश्नमा कुन अध्याय देखिने? (जस्तै: रूथ १-२):</label>
     <input type="text" id="chapterDetails" placeholder="अटोमेटिक भरिनेछ...">
 
     <button class="btn-generate" id="generateBtn" onclick="generateQuestions()">प्रश्नहरू बनाउनुहोस् (Generate)</button>
@@ -194,13 +196,18 @@
         const provider = document.getElementById('apiProvider').value;
         const apiKeyInput = document.getElementById('apiKey');
         const apiKeyLabel = document.getElementById('apiKeyLabel');
+        const keyHint = document.getElementById('keyHint');
         
         if (provider === 'groq') {
             apiKeyLabel.innerText = "Groq API Key:";
             apiKeyInput.placeholder = "gsk_...";
+            keyHint.innerText = "⚠️ Groq को लागि 'gsk_' बाट सुरु हुने Key हाल्नुहोस्।";
+            keyHint.style.color = "#d9534f";
         } else {
             apiKeyLabel.innerText = "Gemini API Key:";
             apiKeyInput.placeholder = "AIza...";
+            keyHint.innerText = "💡 Gemini को लागि 'AIza' बाट सुरु हुने Key हाल्नुहोस्।";
+            keyHint.style.color = "#28a745";
         }
     }
 
@@ -346,8 +353,8 @@ ${bibleText}`;
                 max_tokens: 4000
             });
         } else {
-            // यहाँ '-latest' थपिएको छ जसले गर्दा 'Not Found' एरर आउँदैन
-            const modelName = provider === 'gemini_flash' ? 'gemini-1.5-flash-latest' : 'gemini-1.5-pro-latest';
+            // यहाँ ठ्याक्कै भर्सन नम्बर तोकिएको छ (Not Found एरर आउन नदिन)
+            const modelName = provider === 'gemini_flash' ? 'gemini-1.5-flash-001' : 'gemini-1.5-pro-001';
             apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             requestHeaders = { 'Content-Type': 'application/json' };
             requestBody = JSON.stringify({
