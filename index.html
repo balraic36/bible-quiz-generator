@@ -69,15 +69,26 @@
             <input type="number" id="qCount" value="20" min="1" max="50">
         </div>
         <div>
-            <!-- 💡 यहाँ तपाईंले भन्नुभएका नयाँ विकल्पहरू थपिएका छन् -->
+            <!-- 💡 यहाँ तपाईंले भन्नुभएका सबै प्रकारका नयाँ विकल्पहरू थपिएका छन् -->
             <label>प्रश्नको प्रकार / स्तर:</label>
             <select id="difficulty">
-                <option value="Mixed">सबै मिसाएको</option>
-                <option value="Easy">सजिलो मात्र</option>
-                <option value="Medium">मध्यम मात्र</option>
-                <option value="Hard">गाह्रो मात्र</option>
-                <option value="FillInTheBlank">खाली ठाउँ भर्ने (Fill in blanks)</option>
-                <option value="FactBased">तथ्यमा आधारित (Fact Checking)</option>
+                <optgroup label="सामान्य स्तर">
+                    <option value="Mixed">सबै मिसाएको (Mixed Types)</option>
+                    <option value="Easy">सजिलो मात्र (Easy)</option>
+                    <option value="Medium">मध्यम मात्र (Medium)</option>
+                    <option value="Hard">गाह्रो मात्र (Hard)</option>
+                </optgroup>
+                <optgroup label="विशेष प्रकारका प्रश्नहरू">
+                    <option value="FillInTheBlank">खाली ठाउँ भर्ने</option>
+                    <option value="FactBased">तथ्यमा आधारित (Fact Check)</option>
+                    <option value="QuoteBased">भनाइमा आधारित (कसले कसलाई)</option>
+                    <option value="CommandBased">आदेश वा निर्देशनमा आधारित</option>
+                    <option value="ReasoningBased">कारण खोज्ने प्रश्न (Reasoning)</option>
+                    <option value="ActionBased">कार्यमा आधारित (Action)</option>
+                    <option value="PromiseBased">प्रतिज्ञामा आधारित (Promise)</option>
+                    <option value="NameIdentityBased">नाम र पहिचानमा आधारित</option>
+                    <option value="LocationTravelBased">स्थान र यात्रा सम्बन्धी</option>
+                </optgroup>
             </select>
         </div>
     </div>
@@ -382,21 +393,51 @@
         previewContainer.style.display = 'none';
         downloadGroup.style.display = 'none';
 
-        // 💡 यहाँ प्रयोगकर्ताले छानेको प्रकार अनुसार AI लाई निर्देशन दिने
+        // 💡 यहाँ प्रयोगकर्ताले छानेको प्रकार अनुसार AI लाई कडा निर्देशन दिइनेछ
         let dynamicInstruction = "";
-        if (difficulty === 'FillInTheBlank') {
-            dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "खाली ठाउँ भर्ने (Fill in the blanks)" शैलीका मात्र हुनुपर्छ। जस्तै: 'परमप्रभुले तिम्रो कामको _________ दिऊन्। खाली ठाउँमा के हुन्छ?'`;
-        } else if (difficulty === 'FactBased') {
-            dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "तथ्यमा आधारित (Fact checking)" शैलीका मात्र हुनुपर्छ (जस्तै: कति, को, कहाँ, कहिले)। जस्तै: 'रूथले दिनभरि खेतमा बटुलेको जौं दाँटेर झार्दा कति जति भयो?'`;
-        } else {
-            dynamicInstruction = `प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'} बनाउनुहोस्।`;
+        switch(difficulty) {
+            case 'FillInTheBlank':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "खाली ठाउँ भर्ने (Fill in the blanks)" शैलीका मात्र हुनुपर्छ। जस्तै: 'परमप्रभुले तिम्रो कामको _________ दिऊन्। खाली ठाउँमा के हुन्छ?'`;
+                break;
+            case 'FillInTheBlank':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "खाली ठाउँ भर्ने (Fill in the blanks)" शैलीका मात्र हुनुपर्छ। जस्तै: 'परमप्रभुले तिम्रो कामको _________ दिऊन्। खाली ठाउँमा के हुन्छ?'`;
+                break;
+            case 'FactBased':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "तथ्यमा आधारित (Fact checking)" शैलीका मात्र हुनुपर्छ (जस्तै: कति, को, कहाँ, कहिले)।`;
+                break;
+            case 'QuoteBased':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "भनाइमा आधारित (Who said to whom)" शैलीका मात्र हुनुपर्छ। जस्तै: 'यो कुरा कसले कसलाई भन्यो?'`;
+                break;
+            case 'CommandBased':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "आदेश वा निर्देशनमा आधारित (Command/Instruction based)" शैलीका मात्र हुनुपर्छ।`;
+                break;
+            case 'ReasoningBased':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "कारण खोज्ने प्रश्न (Reasoning based)" शैलीका मात्र हुनुपर्छ। (जस्तै: किन त्यसो भनियो? कारण के थियो?)`;
+                break;
+            case 'ActionBased':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "कार्यमा आधारित प्रश्न (Action based)" शैलीका मात्र हुनुपर्छ। (जस्तै: उसले के गर्यो? के कदम चालियो?)`;
+                break;
+            case 'PromiseBased':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "प्रतिज्ञामा आधारित (Promise based)" शैलीका मात्र हुनुपर्छ। (जस्तै: के प्रतिज्ञा वा वाचा गरियो?)`;
+                break;
+            case 'NameIdentityBased':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "नाम र पहिचानमा आधारित (Name and Identity based)" शैलीका मात्र हुनुपर्छ।`;
+                break;
+            case 'LocationTravelBased':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू अनिवार्य रूपमा "स्थान र यात्रा सम्बन्धी (Location and Travel based)" शैलीका मात्र हुनुपर्छ।`;
+                break;
+            case 'Mixed':
+                dynamicInstruction = `प्रश्नको प्रकार: सबै ${qCount} वटै प्रश्नहरू भनाइमा आधारित, आदेशमा आधारित, कारण खोज्ने, खाली ठाउँ भर्ने, तथ्यमा आधारित आदि सबै प्रकारलाई बराबर मात्रामा मिसाएर बनाउनुहोस्।`;
+                break;
+            default: // Easy, Medium, Hard
+                dynamicInstruction = `प्रश्नको स्तर: सबै ${qCount} वटै प्रश्नहरू '${difficulty}' स्तरका बनाउनुहोस्। प्रश्नहरू भनाइ, तथ्य, खाली ठाउँ, कारण आदि सबै शैलीलाई मिसाएर सोध्नुहोस्।`;
         }
 
         const prompt = `तपाईं एक "नेपाली बाइबल क्विज (Nepali Bible Quiz)" विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
 सन्दर्भ: ${chapterDetails}
 
 अति महत्त्वपूर्ण नियमहरू:
-१. ${dynamicInstruction}
+१. ⚠️ ${dynamicInstruction}
 २. गलत विकल्पहरू (Distractors) सही उत्तर जत्तिकै लामा र एकदमै झुक्याउने हुनुपर्छ।
 ३. सही उत्तर सधैं 'A' मा मात्र नराख्नुहोस्। सही उत्तर A, B, C, वा D मध्ये कुनै पनि हुन सक्ने गरी Randomly छर्नुहोस्।
 ४. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ र त्यसमा "questions" नामको Array हुनुपर्छ।
