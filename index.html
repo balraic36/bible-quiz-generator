@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NNRV Quiz Generator (Groq + Gemini)</title>
+    <title>NNRV Quiz Generator (Pro Auto-Failover)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #f0f2f5; margin: 0; }
         .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 550px; margin: auto; }
@@ -21,7 +21,6 @@
         .btn-fetch { background-color: #2F5597; color: white; padding: 10px; font-size: 14px; height: 100%; }
         .btn-fetch:hover { background-color: #1e3a68; }
 
-        /* Preview Box Styles */
         .preview-container { display: none; margin-top: 20px; border-top: 2px dashed #ccc; padding-top: 15px; }
         .preview-box { width: 100%; background: #fdfdfd; font-family: monospace; font-size: 14px; border: 1px solid #bbb; padding: 10px; border-radius: 6px; resize: vertical; min-height: 250px; }
         .btn-copy { background-color: #17a2b8; color: white; margin-top: 10px; padding: 12px; }
@@ -53,7 +52,7 @@
 
 <div class="container">
     <h2>बाइबल प्रश्न जेनेरेटर ⚡</h2>
-    <div class="subtitle">Groq + Gemini Smart Engine</div>
+    <div class="subtitle">Smart Quiz Engine with Exact Bible Phrases</div>
     
     <div class="api-box">
         <label>१. Groq API Key (मुख्य र छिटो):</label>
@@ -178,14 +177,12 @@
     
     <div id="status"></div>
 
-    <!-- Live Preview & Copy Box -->
     <div class="preview-container" id="previewContainer">
         <label>👀 तयार पारिएका प्रश्नहरू (यहाँ पढेर कपि गर्न सक्नुहुन्छ):</label>
         <textarea id="outputPreview" class="preview-box" readonly></textarea>
         <button class="btn-copy" onclick="copyFromPreview()">📋 सबै टेक्स्ट कपि गर्नुहोस्</button>
     </div>
 
-    <!-- Download Options -->
     <div class="download-group" id="downloadGroup">
         <label style="text-align:center; color:#555;">अथवा फाइल डाउनलोड गर्नुहोस्:</label>
         <button class="btn-word" onclick="downloadWord()">📝 Word (DOC) डाउनलोड गर्नुहोस्</button>
@@ -202,9 +199,11 @@
     let fullBookData = null; 
     let currentBookCode = "";
 
-    function toNepaliNum(num) {
+    // नम्बरलाई नेपालीमा रूपान्तरण गर्ने (जस्तै: 1:16 लाई १:१६ बनाउने)
+    function toNepaliNum(str) {
+        if (!str) return '';
         const nepDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
-        return num.toString().replace(/\d/g, d => nepDigits[d]);
+        return str.toString().replace(/\d/g, d => nepDigits[d]);
     }
 
     function extractChaptersAndCheckLimit(data, start, end) {
@@ -363,16 +362,15 @@
         previewContainer.style.display = 'none';
         downloadGroup.style.display = 'none';
 
+        // 💡 यहाँ Prompt मा परिवर्तन गरिएको छ ताकि AI ले बाइबलको ठ्याक्कै वाक्य दियोस्
         const prompt = `तपाईं एक NNRV बाइबल क्विज विशेषज्ञ हुनुहुन्छ। तल दिइएको बाइबल पाठ पढेर नेपाली भाषामा ठ्याक्कै ${qCount} वटा बहुवैकल्पिक (MCQ) प्रश्नहरू बनाउनुहोस्।
 प्रश्नको स्तर: ${difficulty === 'Mixed' ? 'Easy, Medium, र Hard मिसाएर' : difficulty + ' मात्र'}
 सन्दर्भ: ${chapterDetails}
 
 अति महत्त्वपूर्ण नियमहरू:
-१. सही उत्तर सधैं 'A' मा मात्र नराख्नुहोस्। सही उत्तर A, B, C, वा D मध्ये कुनै पनि हुन सक्ने गरी **Randomly (अनियमित रूपमा)** छर्नुहोस्। कुनै प्रश्नको उत्तर B, कुनैको C, कुनैको A, कुनैको D हुनुपर्छ।
-२. गलत विकल्पहरू (Distractors) एकदमै झुक्याउने खालका हुनुपर्छ, तर सही उत्तर भने बाइबलको पाठमा जस्तो शब्द (Vocabulary) छ, हुबहु त्यस्तै हुनुपर्छ।
-३. प्रत्येक प्रश्नमा एउटा मात्र सही उत्तर हुनुपर्छ।
-४. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ र त्यसमा "questions" नामको Array हुनुपर्छ।
-५. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
+१. सही उत्तर सधैं 'A' मा मात्र नराख्नुहोस्। सही उत्तर A, B, C, वा D मध्ये कुनै पनि हुन सक्ने गरी Randomly छर्नुहोस्।
+२. तपाईंको आउटपुट अनिवार्य रूपमा एउटा JSON Object हुनुपर्छ र त्यसमा "questions" नामको Array हुनुपर्छ।
+३. प्रत्येक प्रश्नको Schema यस्तो हुनुपर्छ:
 {
   "category": "Bible Quiz",
   "bookDetails": "${chapterDetails}",
@@ -383,9 +381,11 @@
   "optionC": "...",
   "optionD": "...",
   "correctAnswer": "A/B/C/D",
+  "correctAnswerPhrase": "...",
   "difficulty": "Easy/Medium/Hard"
 }
-६. "verseReference" मा ठ्याक्कै कुन पुस्तक, अध्याय र पदबाट प्रश्न सोधिएको हो, त्यो लेख्नुहोस् (जस्तै: दानिएल २:४५)।
+४. "verseReference" मा ठ्याक्कै कुन पुस्तक, अध्याय र पदबाट प्रश्न सोधिएको हो, त्यो लेख्नुहोस् (जस्तै: दानिएल २:४५)।
+५. ⚠️ "correctAnswerPhrase" मा सही उत्तरलाई पुष्टि गर्ने बाइबलको ठ्याक्कै त्यही वाक्य वा वाक्यांश (Exact text from the verse) जस्ताको तस्तै हुबहु निकाल्नुहोस्। जस्तै: "तपाईं जहाँ जानुहुन्छ म पनि त्यहीँ जानेछु।"
 
 बाइबल पाठ:
 ${bibleText}`;
@@ -394,7 +394,6 @@ ${bibleText}`;
         let success = false;
         let errorMessage = "";
 
-        // १. इन्जिन १ (Groq) ट्राइ गर्ने
         if (groqKey && !success) {
             try {
                 statusEl.innerHTML = "⚡ <b>Groq (इन्जिन १)</b> बाट प्रश्नहरू बन्दैछन्... ⏳";
@@ -407,7 +406,6 @@ ${bibleText}`;
             }
         }
 
-        // २. इन्जिन २ (Gemini) ट्राइ गर्ने
         if (geminiKey && !success) {
             try {
                 statusEl.innerHTML = "🔄 <b>Gemini (इन्जिन २)</b> प्रयोग गर्दैछ... ⏳";
@@ -433,14 +431,17 @@ ${bibleText}`;
                 
                 generatedData = JSON.stringify(finalArray, null, 4); 
                 
-                // Show Live Preview in Textarea
+                // 💡 Preview मा नयाँ ढाँचा (सही उत्तर:- सन्दर्भ. बाइबलको वाक्य)
                 let textToDisplay = `बाइबल Quiz प्रश्नहरु (${chapterDetails})\n\n`;
                 finalArray.forEach((q, index) => {
                     let nepaliNum = toNepaliNum(index + 1);
-                    let ref = q.verseReference ? q.verseReference : q.bookDetails;
+                    let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
+                    let nepaliRef = toNepaliNum(rawRef); // जस्तै रूथ 1:16 लाई रूथ १:१६ बनाउँछ
+                    let exactPhrase = q.correctAnswerPhrase ? q.correctAnswerPhrase : q.correctAnswer;
+                    
                     textToDisplay += `${nepaliNum}) ${q.questionText}\n`;
                     textToDisplay += `   A. ${q.optionA}\n   B. ${q.optionB}\n   C. ${q.optionC}\n   D. ${q.optionD}\n`;
-                    textToDisplay += `✅ सही उत्तर: ${q.correctAnswer} (सन्दर्भ: ${ref})\n\n`;
+                    textToDisplay += `✅ सही उत्तर:- ${nepaliRef}. ${exactPhrase}\n\n`;
                 });
                 
                 document.getElementById('outputPreview').value = textToDisplay;
@@ -462,11 +463,10 @@ ${bibleText}`;
         document.getElementById('generateBtn').disabled = false;
     }
 
-    // नयाँ सुविधा: Preview बक्सबाट टेक्स्ट कपि गर्ने
     function copyFromPreview() {
         const previewBox = document.getElementById('outputPreview');
         previewBox.select();
-        previewBox.setSelectionRange(0, 99999); // For mobile devices
+        previewBox.setSelectionRange(0, 99999);
         navigator.clipboard.writeText(previewBox.value).then(() => {
             alert("✅ सबै प्रश्नहरू क्लिपबोर्डमा कपि भयो! अब Word वा WhatsApp मा गएर Paste (पेस्ट) गर्नुहोस्।");
         }).catch(err => {
@@ -522,13 +522,17 @@ ${bibleText}`;
 
         data.forEach((q, index) => {
             let nepaliNum = toNepaliNum(index + 1);
-            let referenceText = q.verseReference ? q.verseReference : q.bookDetails;
+            let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
+            let nepaliRef = toNepaliNum(rawRef);
+            let exactPhrase = q.correctAnswerPhrase ? q.correctAnswerPhrase : q.correctAnswer;
+
             content += `<div style='margin-bottom: 15px;'>`;
             content += `<div style='font-size: 16px; font-weight: bold; margin-bottom: 5px;'>${nepaliNum}) ${q.questionText}</div>`;
             content += `<div style='font-size: 16px; margin-left: 20px; line-height: 1.5;'>`;
             content += `A: ${q.optionA}<br>B: ${q.optionB}<br>C: ${q.optionC}<br>D: ${q.optionD}`;
             content += `</div>`;
-            content += `<div style='font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;'>सही उत्तर: ${q.correctAnswer} <span style='font-size: 14px; font-weight: normal; color: #555;'>(सन्दर्भ: ${referenceText})</span></div>`;
+            // 💡 Word मा पनि नयाँ ढाँचा
+            content += `<div style='font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;'>सही उत्तर:- ${nepaliRef}. ${exactPhrase}</div>`;
             content += `</div>`;
         });
         content += `</body></html>`;
@@ -556,13 +560,17 @@ ${bibleText}`;
 
         data.forEach((q, index) => {
             let nepaliNum = toNepaliNum(index + 1);
-            let referenceText = q.verseReference ? q.verseReference : q.bookDetails;
+            let rawRef = q.verseReference ? q.verseReference : q.bookDetails;
+            let nepaliRef = toNepaliNum(rawRef);
+            let exactPhrase = q.correctAnswerPhrase ? q.correctAnswerPhrase : q.correctAnswer;
+
             content += `<div class="page-break-safe">`;
             content += `<div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${nepaliNum}) ${q.questionText}</div>`;
             content += `<div style="font-size: 16px; margin-left: 20px; line-height: 1.6;">`;
             content += `A: ${q.optionA}<br>B: ${q.optionB}<br>C: ${q.optionC}<br>D: ${q.optionD}`;
             content += `</div>`;
-            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;">सही उत्तर: ${q.correctAnswer} <span style="font-size: 14px; font-weight: normal; color: #555;">(सन्दर्भ: ${referenceText})</span></div>`;
+            // 💡 PDF मा पनि नयाँ ढाँचा
+            content += `<div style="font-size: 16px; font-weight: bold; margin-top: 5px; margin-left: 20px; color: #0b5e31;">सही उत्तर:- ${nepaliRef}. ${exactPhrase}</div>`;
             content += `</div>`;
         });
         content += `</div>`;
